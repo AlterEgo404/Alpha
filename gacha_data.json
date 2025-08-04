@@ -1,0 +1,14 @@
+{
+  "gacha_pool": {
+    "tốt": ["ko"],
+    "hiếm": ["ko"],
+    "sử thi": ["ko"],
+    "huyền thoại": ["ko"]
+  },
+  "rarity_chance": {
+    "tốt": 95,
+    "hiếm": 3,
+    "sử thi": 1.5,
+    "huyền thoại": 0.5
+  }
+}
