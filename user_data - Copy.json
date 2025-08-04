@@ -1,0 +1,91 @@
+{
+    "jackpot": 1000000000,
+    "1361702060071850024": {
+        "points": 20990172,
+        "items": {
+            ":bullettrain_side: Viên đạn": 2093,
+            "<:RPG:1325750069189677087> RPG": 1,
+            ":lock: Ổ khóa": 10
+        },
+        "smart": 160,
+        "streak": 1,
+        "last_daily": "2025-05-07",
+        "last_study": "2025-05-07 15:12:02",
+        "last_beg": "2025-04-19 14:13:05",
+        "last_rob": "2025-05-07 12:57:13",
+        "last_hunt": "2025-05-10 14:26:28",
+        "garden": {
+            "plant": "Lê",
+            "planted_at": "2025-05-07 21:09:25",
+            "time_required": 1200,
+            "min_reward": 100000,
+            "max_reward": 400000
+        }
+    },
+    "1201167663850868798": {
+        "points": 15633,
+        "items": {
+            ":gun: Súng săn": 1,
+            ":bullettrain_side: Viên đạn": 26
+        },
+        "smart": 160,
+        "streak": 1,
+        "last_daily": "2025-05-07",
+        "last_beg": "2025-05-07 15:44:33",
+        "last_study": "2025-05-07 15:11:31",
+        "last_rob": "2025-04-19 13:05:39",
+        "last_hunt": "2025-05-07 15:40:22",
+        "garden": {}
+    },
+    "1299616840040976459": {
+        "points": 54079,
+        "items": {
+            ":bullettrain_side: Viên đạn": 117,
+            "<:Awm:1325747265045794857> Awm": 1,
+            ":lock: Ổ khóa": 6,
+            ":seedling: Hạt giống": 1
+        },
+        "smart": 120,
+        "last_beg": "2025-05-07 15:37:57",
+        "streak": 1,
+        "last_daily": "2025-04-19",
+        "last_study": "2025-05-07 15:30:22",
+        "last_rob": "2025-05-07 20:32:25",
+        "last_hunt": "2025-05-07 20:42:10",
+        "garden": {
+            "plant": "Lê",
+            "planted_at": "2025-05-07 20:42:30",
+            "time_required": 1200,
+            "min_reward": 100000,
+            "max_reward": 400000
+        }
+    },
+    "1321107092945506418": {
+        "points": 57830,
+        "items": {
+            "<:RPG:1325750069189677087> RPG": 1
+        },
+        "smart": 160,
+        "streak": 1,
+        "last_daily": "2025-05-10",
+        "last_beg": "2025-05-10 14:27:45",
+        "last_study": "2025-05-07 20:26:11",
+        "last_rob": "2025-05-10 14:20:03",
+        "last_hunt": "2025-05-10 14:36:09",
+        "garden": {}
+    },
+    "1344655280553725972": {
+        "points": 7550,
+        "items": {},
+        "smart": 110,
+        "streak": 1,
+        "last_daily": "2025-04-23",
+        "last_study": "2025-04-23 13:14:46"
+    },
+    "1204406593769177093": {
+        "points": 23873,
+        "items": {},
+        "smart": 100,
+        "last_beg": "2025-05-07 15:38:06"
+    }
+}
