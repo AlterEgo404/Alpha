@@ -217,33 +217,42 @@ async def on_ready():
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
-        await ctx.reply("Lệnh bạn nhập không tồn tại. Vui lòng kiểm tra lại :>")
+        await ctx.reply("❌ Lệnh bạn nhập không tồn tại. Vui lòng kiểm tra lại :>")
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.reply("Bạn thiếu một tham số cần thiết. Vui lòng kiểm tra lại cú pháp lệnh.")
+        await ctx.reply("⚠️ Bạn thiếu một tham số cần thiết. Vui lòng kiểm tra lại cú pháp lệnh.")
     elif isinstance(error, commands.BadArgument):
-        await ctx.reply("Đối số bạn nhập không hợp lệ. Vui lòng kiểm tra lại.")
+        await ctx.reply("❌ Đối số bạn nhập không hợp lệ. Vui lòng kiểm tra lại.")
+    elif isinstance(error, commands.MissingPermissions):
+        await ctx.reply("🚫 Bạn không có quyền sử dụng lệnh này.")
+    elif isinstance(error, commands.CommandOnCooldown):
+        await ctx.reply(f"⏳ Lệnh đang trong thời gian hồi. Thử lại sau `{round(error.retry_after, 1)} giây`.")
+    elif isinstance(error, commands.CheckFailure):
+        await ctx.reply("❗Bạn không được phép sử dụng lệnh này ở đây.")
     else:
-        # In lỗi ra console để debug
-        print(f"Lỗi không xác định: {type(error).__name__} - {error}")
-        await ctx.reply("Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau!")
+        # In lỗi chi tiết ra console để dễ debug
+        print(f"[LỖI] {type(error).__name__}: {error}")
+        await ctx.reply("⚠️ Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau!")
 
 @bot.command(name="start", help='`$start`\n> Khởi tạo tài khoản')
 async def start(ctx):
     user_id = str(ctx.author.id)
     member = ctx.author
 
-    if user_id in user_data:
+    if get_user(user_id):
         await ctx.reply(f"Bạn đã có tài khoản rồi, {ctx.author.mention} ơi! Không cần tạo lại nữa.")
         return
 
-    # Khởi tạo tài khoản mới
-    user_data[user_id] = {
+    # Tạo dữ liệu người dùng mới
+    user_data = {
         "points": 10000,
         "items": {},
         "smart": 100
     }
 
-    # Kiểm tra vai trò và thêm vai trò cho người dùng
+    # Lưu vào database (hoặc file .json nếu bạn chưa chuyển sang MongoDB)
+    create_user(user_id, user_data)
+
+    # Thêm role nếu chưa có
     role_id = 1316985467853606983
     role = ctx.guild.get_role(role_id)
     if role:
@@ -254,9 +263,6 @@ async def start(ctx):
     else:
         await ctx.reply("Không thể tìm thấy vai trò cần thiết trong server.")
 
-    # Lưu lại dữ liệu người dùng
-    save_user_data(user_data)
-
     # Thông báo cho người dùng
     await ctx.reply(f"Tài khoản của bạn đã được tạo thành công, {ctx.author.mention}!")
 
@@ -265,10 +271,22 @@ async def info(ctx):
     if not await check_permission(ctx):
         return
 
-    embed = discord.Embed(title="📊 Thông tin Bot", color=discord.Color.red())
-    embed.add_field(name="👩‍💻 Nhà phát triển", value=f"```ansi\n[2;31mAlpha[0m```", inline=True)
-    embed.add_field(name="Phiên bản Bot", value=f'```ansi\n[2;34m2.0.0[0m\n```')
-    embed.set_thumbnail(url='https://cdn.discordapp.com/attachments/1322746396142604378/1322746745440043143/2.png?ex=6771ff67&is=6770ade7&hm=a9ec85dbd4076a807af3bccecb32e2eb8bd4b577d2a34f6e8d95dfbc4a9f327a&')
+    embed = discord.Embed(
+        title="📊 Thông tin Bot",
+        color=discord.Color.red()
+    )
+    embed.add_field(
+        name="👩‍💻 Nhà phát triển",
+        value="```ansi\n[2;31mAlpha[0m```",
+        inline=True
+    )
+    embed.add_field(
+        name="Phiên bản Bot",
+        value="```ansi\n[2;34m2.0.0[0m```"
+    )
+    embed.set_thumbnail(
+        url="https://cdn.discordapp.com/attachments/1322746396142604378/1322746745440043143/2.png?ex=6771ff67&is=6770ade7&hm=a9ec85dbd4076a807af3bccecb32e2eb8bd4b577d2a34f6e8d95dfbc4a9f327a&"
+    )
 
     await ctx.reply(embed=embed)
 
@@ -277,21 +295,27 @@ async def jp(ctx):
     if not await check_permission(ctx):
         return
 
-    jackpot_amount = format_currency(user_data.get('jackpot', 0))
+    jackpot_amount = format_currency(get_jackpot())
     await ctx.reply(f"💰 **Jackpot hiện tại:** {jackpot_amount} {coin}")
+
 @bot.command(name="mk", help='`$mk`\n> xem cửa hàng')
 async def shop(ctx):
     if not await check_permission(ctx):
         return
 
     embed = discord.Embed(
-        title='🏬**Cửa hàng**\nMua bằng lệnh `$buy <id> <số lượng>`.\nBán bằng lệnh `$sell <id> <số lượng>`.',
-        color=discord.Color.red())
+        title="🏬 **Cửa hàng**",
+        description="Mua bằng lệnh `$buy <id> <số lượng>`.\nBán bằng lệnh `$sell <id> <số lượng>`.",
+        color=discord.Color.red()
+    )
 
     for item_id, item in shop_data.items():
+        name = item.get("name", "Không tên")
+        price = item.get("price", 0)
+        icon = item.get("icon", "")
         embed.add_field(
-            name=f"`{item_id}` {item['name']}\n`{format_currency(item['price'])}` {coin}",
-            value=f"\t",
+            name=f"`{item_id}` {icon} {name}",
+            value=f"`{format_currency(price)}` {coin}",
             inline=True
         )
 
@@ -318,31 +342,26 @@ async def buy(ctx, item_id: str, quantity: int):
     item_data = shop_data[item_id]
     item_name = item_data['name']
 
-    # Lấy danh sách vật phẩm của người dùng
-    user_items = user_data[user_id].get('items', {})
+    user = get_user(user_id)
+    if not user:
+        await ctx.reply("Không tìm thấy dữ liệu người dùng.")
+        return
 
+    user_items = user.get('items', {})
     total_price = item_data['price'] * quantity
 
-    if total_price > user_data[user_id]['points']:
+    if total_price > user['points']:
         await ctx.reply("Bạn làm đéo gì có đủ tiền mà đòi mua")
         return
-    
-    if item_id == "01":
-        if "company_balance" not in user_data[user_id]:
-            user_data[user_id]["company_balance"] = 0
 
-    if item_id == "03":
-        if "company_balance" not in user_data[user_id]:
-            user_data[user_id]["garden"] = {}
+    if item_id == "01" and "company_balance" not in user:
+        user["company_balance"] = 0
 
-    # Trừ điểm của người dùng
-    user_data[user_id]['points'] -= total_price
-
-    # Thêm vật phẩm vào kho đồ của người dùng
+    user['points'] -= total_price
     user_items[item_name] = user_items.get(item_name, 0) + quantity
-    user_data[user_id]['items'] = user_items
+    user['items'] = user_items
 
-    save_user_data(user_data)
+    update_user(user_id, user)
 
     await ctx.reply(f"Bạn đã mua {quantity} {item_name}.")
 
@@ -368,29 +387,27 @@ async def sell(ctx, item_id: str, quantity: int):
     item_name = item_data['name']
     selling_price = round(item_data['price'] * quantity * 0.9)
 
-    # Lấy danh sách vật phẩm của người dùng
-    user_items = user_data[user_id].get('items', {})
+    user = get_user(user_id)
+    if not user:
+        await ctx.reply("Không tìm thấy dữ liệu người dùng.")
+        return
 
-    # Kiểm tra xem người dùng có đủ vật phẩm để bán không
+    user_items = user.get('items', {})
     current_quantity = user_items.get(item_name, 0)
-    
+
     if current_quantity < quantity:
         await ctx.reply("Bạn không có đủ mặt hàng này để bán.")
         return
 
-    # Trừ số lượng vật phẩm từ kho đồ người dùng
     user_items[item_name] -= quantity
 
-    # Kiểm tra và xóa `company_balance` nếu bán ID "01" và không còn trong kho
-    if item_id == "01" and "company_balance" in user_data[user_id]:
-        if user_data[user_id]['items'].get(":office: Công ty", 0) == 0:
-            del user_data[user_id]["company_balance"]
+    if item_id == "01" and user_items.get(":office: Công ty", 0) == 0:
+        user.pop("company_balance", None)
 
-    # Cập nhật điểm của người dùng
-    user_data[user_id]['points'] += selling_price
-    user_data[user_id]['items'] = user_items
+    user['points'] += selling_price
+    user['items'] = user_items
 
-    save_user_data(user_data)
+    update_user(user_id, user)
 
     await ctx.reply(f"Bạn đã bán {quantity} {item_name} và nhận được {format_currency(selling_price)} {coin}.")
 
@@ -442,7 +459,9 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
     if not await check_user_data(ctx, user_id):
         return
 
-    smart = user_data[user_id]["smart"]
+    # Dùng MongoDB để lấy thông tin người dùng
+    data = get_user(user_id)
+    smart = data.get("smart", 0)
     user_name = member.name
     avatar_url = member.display_avatar.with_size(size).url
 
@@ -464,7 +483,7 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
         return
     galaxy_background = galaxy_background.resize((400, 225))
 
-    server_image = Image.open("E:\\usb\\Alpha\\1.png")  # Mở ảnh từ byte stream
+    server_image = Image.open("1.png")  # Mở ảnh từ đường dẫn tĩnh
     if server_image is None:
         await ctx.reply("Lỗi tải ảnh server.")
         return
@@ -511,22 +530,23 @@ async def bag(ctx, member: discord.Member = None):
     if not await check_user_data(ctx, user_id):
         return
 
-    points = format_currency(user_data[user_id].get('points', 0))
-    items = user_data[user_id].get('items', {})
+    # Lấy dữ liệu người dùng từ MongoDB
+    data = get_user(user_id)
+    points = format_currency(data.get('points', 0))
+    items = data.get('items', {})
+    company_balance = data.get("company_balance")
 
+    # Định dạng danh sách item
     if not items:
         item_list = "Trống."
     else:
-        # Đếm và định dạng danh sách đồ
         item_list = ""
         for item_name, quantity in items.items():
             item_list += f"{item_name}: {quantity}\n"
 
-    # Lấy company_balance nếu có
-    company_balance = user_data[user_id].get("company_balance")
     company_text = f"**Công ty**: {format_currency(company_balance)} {coin}." if company_balance is not None else ""
 
-    # Tạo embed
+    # Tạo embed trả về
     embed = discord.Embed(
         title=f"**:luggage: Túi**\n{member}",
         description=(f"**Tài khoản**: {points} {coin}.\n"
@@ -544,11 +564,13 @@ async def ou(ctx, bet: str, choice: str):
 
     user_id = str(ctx.author.id)
 
-    if not get_user(user_id):
+    data = get_user(user_id)
+    if not data:
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
+        return
 
     if bet.lower() == 'all':
-        bet = user_data[user_id]['points']
+        bet = data.get('points', 0)
     else:
         try:
             bet = int(bet)
@@ -556,7 +578,7 @@ async def ou(ctx, bet: str, choice: str):
             await ctx.reply(f"Số {coin} cược không hợp lệ.")
             return
 
-    if bet <= 0 or bet > user_data[user_id]['points']:
+    if bet <= 0 or bet > data.get('points', 0):
         await ctx.reply("Bạn làm đéo gì có tiền mà cược :rofl:")
         return
 
@@ -571,13 +593,17 @@ async def ou(ctx, bet: str, choice: str):
         dice1, dice2, dice3 = random.randint(1, 6), random.randint(1, 6), random.randint(1, 6)
     total = dice1 + dice2 + dice3
 
-    if (3 <= total <= 10 and choice == "x") or (11 <= total <= 18 and choice == "t"):
-        user_data[user_id]['points'] += bet
+    # Tính kết quả
+    win = (3 <= total <= 10 and choice == "x") or (11 <= total <= 18 and choice == "t")
+    if win:
+        data['points'] += bet
     else:
-        user_data[user_id]['points'] -= bet
+        data['points'] -= bet
+        update_jackpot(bet)  # Cập nhật jackpot nếu thua
 
-    save_user_data(user_data)
+    update_user(user_id, data)
 
+    # Hiển thị xúc xắc
     dice1_emoji = dice_emojis[dice1]
     dice2_emoji = dice_emojis[dice2]
     dice3_emoji = dice_emojis[dice3]
@@ -593,10 +619,10 @@ async def ou(ctx, bet: str, choice: str):
         if choice == "x":
             await rolling_message.edit(content=f"`   ` {dice1_emoji} `Xỉu`\n`  `{dice2_emoji} {dice3_emoji}`$$`")
         else:
-            await rolling_message.edit(content=f"`   ` {dice1_emoji} `Xỉu`\n`$$`{dice2_emoji} {dice3_emoji}`  `\nHehe,{ctx.author.mention} ngu thì chết chứ sao :rofl:")
-    if 11 <= total <= 18:
+            await rolling_message.edit(content=f"`   ` {dice1_emoji} `Xỉu`\n`$$`{dice2_emoji} {dice3_emoji}`  `\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:")
+    else:
         if choice == "x":
-            await rolling_message.edit(content=f"`Tài` {dice1_emoji} `   `\n`  `{dice2_emoji} {dice3_emoji}`$$`\nHehe,{ctx.author.mention} ngu thì chết chứ sao :rofl:")
+            await rolling_message.edit(content=f"`Tài` {dice1_emoji} `   `\n`  `{dice2_emoji} {dice3_emoji}`$$`\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:")
         else:
             await rolling_message.edit(content=f"`Tài` {dice1_emoji} `   `\n`$$`{dice2_emoji} {dice3_emoji}`  `")
 
@@ -607,10 +633,12 @@ async def daily(ctx):
 
     user_id = str(ctx.author.id)
 
-    if not get_user(user_id):
+    data = get_user(user_id)
+    if not data:
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
+        return
 
-    last_daily = user_data[user_id].get('last_daily')
+    last_daily = data.get('last_daily')
     now = datetime.datetime.now()
 
     if last_daily is not None:
@@ -625,22 +653,25 @@ async def daily(ctx):
             return
 
         elif (now - last_daily_date).days == 1:
-            user_data[user_id]['streak'] += 1
+            data['streak'] = data.get('streak', 0) + 1
         else:
-            user_data[user_id]['streak'] = 1
+            data['streak'] = 1
     else:
-        user_data[user_id]['streak'] = 1
+        data['streak'] = 1
 
     base_reward = 5000
-    streak_bonus = user_data[user_id]['streak'] * 100
+    streak_bonus = data['streak'] * 100
     total_reward = base_reward + streak_bonus
 
-    user_data[user_id]['points'] += total_reward
-    user_data[user_id]['last_daily'] = now.strftime("%Y-%m-%d")
+    data['points'] = data.get('points', 0) + total_reward
+    data['last_daily'] = now.strftime("%Y-%m-%d")
 
-    save_user_data(user_data)
+    update_user(user_id, data)
 
-    await ctx.reply(f"Bạn đã nhận được {format_currency(total_reward)} {coin}! (Thưởng streak: {streak_bonus} {coin}, chuỗi ngày: {user_data[user_id]['streak']} ngày)")
+    await ctx.reply(
+        f"Bạn đã nhận được {format_currency(total_reward)} {coin}!"
+        f" (Thưởng streak: {streak_bonus} {coin}, chuỗi ngày: {data['streak']} ngày)"
+    )
 
 @bot.command(name="prog", help='`$prog`\n> ăn xin')
 async def prog(ctx):
@@ -648,15 +679,17 @@ async def prog(ctx):
         return
 
     user_id = str(ctx.author.id)
+    data = get_user(user_id)
 
-    if not get_user(user_id):
+    if not data:
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
+        return
 
-    last_beg = user_data[user_id].get('last_beg')
+    last_beg = data.get('last_beg')
     now = datetime.datetime.now()
 
     if last_beg is not None:
-        cooldown_time = 3 * 60
+        cooldown_time = 3 * 60  # 3 phút
         time_elapsed = (now - datetime.datetime.strptime(last_beg, "%Y-%m-%d %H:%M:%S")).total_seconds()
 
         if time_elapsed < cooldown_time:
@@ -664,16 +697,16 @@ async def prog(ctx):
             await ctx.reply(f"Bạn đã ăn xin rồi, vui lòng thử lại sau {minutes} phút {seconds} giây.")
             return
 
-    if user_data[user_id]['points'] < 100000:
+    if data.get('points', 0) < 100_000:
         beg_amount = random.randint(0, 5000)
-        user_data[user_id]['points'] += beg_amount
+        data['points'] = data.get('points', 0) + beg_amount
     else:
         await ctx.reply('giàu mà còn đi ăn xin đéo thấy nhục à')
         return
-    
-    user_data[user_id]['last_beg'] = now.strftime("%Y-%m-%d %H:%M:%S")
 
-    save_user_data(user_data)
+    data['last_beg'] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+    update_user(user_id, data)
 
     await ctx.reply(f"Bạn đã nhận được {format_currency(beg_amount)} {coin} từ việc ăn xin!")
 
@@ -685,26 +718,32 @@ async def give(ctx, amount: int, member: discord.Member):
     giver_id = str(ctx.author.id)
     receiver_id = str(member.id)
 
-    if giver_id not in user_data:
+    giver_data = get_user(giver_id)
+    receiver_data = get_user(receiver_id)
+
+    if not giver_data:
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
+        return
 
-    if receiver_id not in user_data:
+    if not receiver_data:
         await ctx.reply("Có vẻ đối tượng chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
-
-    giver_points = user_data[giver_id].get('points', 0)
+        return
 
     if amount <= 0:
         await ctx.reply(f"Số {coin} phải lớn hơn 0!")
         return
 
-    if amount > giver_points:
+    if amount > giver_data.get('points', 0):
         await ctx.reply(f"Bạn không đủ {coin} để tặng!")
         return
 
-    user_data[giver_id]['points'] -= amount
-    user_data[receiver_id]['points'] += amount
+    # Trừ điểm người gửi, cộng điểm người nhận
+    giver_data['points'] -= amount
+    receiver_data['points'] += amount
 
-    save_user_data(user_data)
+    # Lưu dữ liệu
+    update_user(giver_id, giver_data)
+    update_user(receiver_id, receiver_data)
 
     await ctx.reply(f"Bạn đã tặng {format_currency(amount)} {coin} cho {member.mention}!")
 
@@ -715,19 +754,25 @@ async def help(ctx, command=None):
     if command is None:
         embed = discord.Embed(
             title="Danh sách lệnh",
-            description=f"Lệnh tài khoản:\n> `$start`, `$lb`, `$dn`, `$cccd`, `$bag`\nLệnh mua bán:\n> `$mk`, `$ttsp`\nLệnh kiếm tiền:\n> `$daily`, `$prog`, `$hunt`\nLệnh tệ nạn:\n> `$ou`, `$thief`, `$othief`, `$slots`\nLệnh học vấn:\n> `$op`, `$study`\nLệnh cây cối:\n> `$plant`, `$mygarden`, `$harvest`",
+            description=(
+                f"Lệnh tài khoản:\n> `$start`, `$lb`, `$dn`, `$cccd`, `$bag`\n"
+                f"Lệnh mua bán:\n> `$mk`, `$ttsp`, `$buy`, `$sell`\n"
+                f"Lệnh kiếm tiền:\n> `$daily`, `$prog`, `$hunt`\n"
+                f"Lệnh tệ nạn:\n> `$ou`, `$thief`, `$othief`, `$slots`\n"
+                f"Lệnh học vấn:\n> `$op`, `$study`"
+            ),
             color=discord.Color.red()
-            )
+        )
         
         await ctx.reply(embed=embed)
-    else:  # Help for a specific command
+    else:
         cmd = bot.get_command(command)
         if cmd:
             embed = discord.Embed(title=f"Lệnh: `{cmd.name}`", description=cmd.help, color=discord.Color.red())
             await ctx.send(embed=embed)
         else:
             await ctx.send("Lệnh không tồn tại.")
-            
+
 @bot.command(name="thief", help='`$thief <người chơi> [công cụ]`\n> trộm 50% điểm của người khác')
 async def rob(ctx, member: discord.Member, tool: str = None):
     if not await check_permission(ctx):
@@ -737,122 +782,95 @@ async def rob(ctx, member: discord.Member, tool: str = None):
     victim_id = str(member.id)
     status = member.status
 
-    if robber_id not in user_data:
-        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
-        return
+    robber_data = get_user(robber_id)
+    victim_data = get_user(victim_id)
 
-    if victim_id not in user_data:
-        await ctx.reply("Nạn nhân không có trong dữ liệu của trò chơi.")
+    if not robber_data:
+        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo.")
+        return
+    if not victim_data:
+        await ctx.reply("Nạn nhân chưa có tài khoản.")
+        return
+    if victim_id == '1243079760062709854':
+        await ctx.reply("Định làm gì với Admin Bot đấy?")
+        return
+    if status == discord.Status.online:
+        await ctx.reply("Nó đang online đấy, cẩn thận không nó đấm!")
         return
 
     now = datetime.datetime.now()
-    last_rob = user_data[robber_id].get('last_rob')
-    
-    if last_rob is not None:
-        time_elapsed = (now - datetime.datetime.strptime(
-            last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
-        cooldown_time = 60 * 60
-
-        if time_elapsed < cooldown_time:
-            if user_data[robber_id]['items'].get(':fast_forward: Skip', 0) > 0:
-                user_data[robber_id]['items'][':fast_forward: Skip'] -= 1
-                await ctx.reply(f"Bạn đã sử dụng :fast_forward: Skip để bỏ qua thời gian chờ!")
+    last_rob = robber_data.get("last_rob")
+    if last_rob:
+        elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
+        if elapsed < 3600:
+            skip = robber_data.get("items", {}).get(":fast_forward: Skip", 0)
+            if skip > 0:
+                update_user(robber_id, {"$inc": {"items.:fast_forward: Skip": -1}})
+                await ctx.reply("Bạn đã dùng :fast_forward: Skip để bỏ qua thời gian chờ!")
             else:
-                minutes, seconds = divmod(int(cooldown_time - time_elapsed),60)
-                hours, minutes = divmod(minutes, 60)
-                await ctx.reply(f"Bạn phải chờ {hours} giờ {minutes} phút {seconds} giây trước khi cướp lại.")
+                remaining = 3600 - int(elapsed)
+                h, m = divmod(remaining, 60*60)
+                m, s = divmod(m, 60)
+                await ctx.reply(f"Bạn phải chờ {h} giờ {m} phút {s} giây nữa.")
                 return
-            
-    if status == discord.Status.online:
-        await ctx.reply('Nó đang online đấy, cẩn thận không nó đấm!')
-        return
 
-    if victim_id == '1243079760062709854':
-        await ctx.reply('Định làm gì với Admin Bot đấy?')
-        return
+    items_r = robber_data.get("items", {})
+    items_v = victim_data.get("items", {})
+    has_lock = items_v.get(":lock: Ổ khóa", 0) > 0
+    pet_guard = items_v.get(":dog: Pet bảo vệ", 0) > 0
+    pet_thief = items_r.get(":cat: Pet trộm", 0) > 0
 
-    # Kiểm tra pet bảo vệ và pet trộm
-    victim_has_guard_pet = user_data[victim_id]['items'].get(':dog: Pet bảo vệ', 0) > 0
-    robber_has_thief_pet = user_data[robber_id]['items'].get(':cat: Pet trộm', 0) > 0
-
-    # Kiểm tra Ổ khóa
-    if user_data[victim_id]['items'].get(':lock: Ổ khóa', 0) > 0:
+    if has_lock:
         tools = {
             "b": { "emoji": ":bomb: Bom", "chance": 0.75 },
             "w": { "emoji": ":wrench: Kìm", "chance": 0.5 },
             "c": { "emoji": "<:cleaner:1347560866291257385> máy hút bụi", "chance": 0.85 }
         }
 
-        # Nếu người dùng chọn công cụ
-        if tool:
-            tool = tool.lower()
-            if tool in tools and user_data[robber_id]['items'].get(tools[tool]["emoji"], 0) > 0:
-                base_chance = tools[tool]["chance"]
-
-                # Điều chỉnh tỷ lệ dựa trên pet
-                if victim_has_guard_pet:
-                    base_chance -= 0.10  # Giảm 10% nếu nạn nhân có pet bảo vệ
-                if robber_has_thief_pet:
-                    base_chance += 0.10  # Tăng 10% nếu người trộm có pet trộm
-
-                success = random.random() < base_chance
-                if success:
-                    user_data[victim_id]['items'][':lock: Ổ khóa'] -= 1
-                    user_data[robber_id]['items'][tools[tool]["emoji"]] -= 1
-
-                    # Nếu dùng máy hút bụi, xóa ngẫu nhiên 2000 món
-                    if tool == "c":
-                        victim_items = user_data[victim_id]['items']
-                        if victim_items:
-                            random_item = random.choice(list(victim_items.keys()))
-                            victim_items[random_item] = max(0, victim_items[random_item] - 2000)
-                            await ctx.reply(f"Bạn đã dùng {tools[tool]['emoji']} và phá vỡ Ổ khóa của {member.mention}!\nBạn còn hút luôn 2000 {random_item} của họ! 😈")
-                        else:
-                            await ctx.reply(f"Bạn đã dùng {tools[tool]['emoji']} và phá vỡ Ổ khóa của {member.mention}, nhưng họ không có đồ gì để hút!")
+        chosen_tool = tool.lower() if tool else None
+        if chosen_tool in tools:
+            tool_data = tools[chosen_tool]
+            emoji = tool_data["emoji"]
+            if items_r.get(emoji, 0) <= 0:
+                await ctx.reply("Bạn không có công cụ đó.")
+                return
+            chance = tool_data["chance"]
+            if pet_guard:
+                chance -= 0.1
+            if pet_thief:
+                chance += 0.1
+            success = random.random() < chance
+            if success:
+                update_user(victim_id, {"$inc": {f"items.:lock: Ổ khóa": -1}})
+                update_user(robber_id, {"$inc": {f"items.{emoji}": -1}})
+                if chosen_tool == "c":
+                    if items_v:
+                        random_item = random.choice(list(items_v.keys()))
+                        update_user(victim_id, {"$inc": {f"items.{random_item}": -2000}})
+                        await ctx.reply(f"Dùng {emoji} phá khóa và hút 2000 {random_item} của {member.mention}!")
                     else:
-                        await ctx.reply(f"Bạn đã dùng {tools[tool]['emoji']} và phá vỡ Ổ khóa của {member.mention}! Thành công cướp!")
+                        await ctx.reply("Dùng máy hút bụi phá khoá, nhưng họ không có gì để hút.")
                 else:
-                    await ctx.reply(f"Bạn đã dùng {tools[tool]['emoji']} nhưng không phá được Ổ khóa!")
-                    return
+                    await ctx.reply(f"Bạn đã dùng {emoji} và phá vỡ Ổ khóa của {member.mention}!")
             else:
-                await ctx.reply("Bạn không có hoặc đã nhập sai công cụ! Chọn `b` (bom), `w` (kìm) hoặc `c` (máy hút bụi).")
+                await ctx.reply("Phá khoá thất bại!")
                 return
         else:
-            # Nếu không chọn, bot tự động chọn
-            possible_tools = [":bomb: Bom", ":wrench: Kìm"]
-            for tool_emoji in possible_tools:
-                if user_data[robber_id]['items'].get(tool_emoji, 0) > 0:
-                    base_chance = 0.75 if tool_emoji == ":bomb: Bom" else 0.5
+            await ctx.reply("Chọn `b`, `w`, hoặc `c` làm công cụ.")
+            return
 
-                    # Điều chỉnh tỷ lệ dựa trên pet
-                    if victim_has_guard_pet:
-                        base_chance -= 0.10
-                    if robber_has_thief_pet:
-                        base_chance += 0.10
-
-                    if random.random() < base_chance:
-                        user_data[victim_id]['items'][':lock: Ổ khóa'] -= 1
-                        user_data[robber_id]['items'][tool_emoji] -= 1
-                        await ctx.reply(f"Bạn đã dùng {tool_emoji} và phá vỡ Ổ khóa của {member.mention}! Thành công cướp!")
-                        break
-            else:
-                await ctx.reply(f"{member.name} đã bảo vệ tài khoản bằng Ổ khóa. Bạn không thể cướp!")
-                return
-
-    # Kiểm tra số điểm của nạn nhân
-    victim_points = user_data[victim_id].get('points', 0)
+    victim_points = victim_data.get("points", 0)
     if victim_points <= 0:
-        await ctx.reply(f"{member.name} không có {coin} để cướp!")
+        await ctx.reply(f"{member.name} không có {coin} để cướp.")
         return
 
-    stolen_points = round(victim_points * 0.5)
-    user_data[victim_id]['points'] -= stolen_points
-    user_data[robber_id]['points'] += stolen_points
-
-    user_data[robber_id]['last_rob'] = now.strftime("%Y-%m-%d %H:%M:%S")
-
-    save_user_data(user_data)
-    await ctx.reply(f"Bạn đã cướp được {format_currency(stolen_points)} {coin} từ {member.name}!")
+    stolen = round(victim_points * 0.5)
+    update_user(victim_id, {"$inc": {"points": -stolen}})
+    update_user(robber_id, {
+        "$inc": {"points": stolen},
+        "$set": {"last_rob": now.strftime("%Y-%m-%d %H:%M:%S")}
+    })
+    await ctx.reply(f"Bạn đã cướp {format_currency(stolen)} {coin} từ {member.name}!")
 
 @bot.command(name="hunt", help='`$hunt <weapon>`\n> đi săn kiếm tiền')
 async def hunt(ctx, weapon: str):
@@ -860,62 +878,59 @@ async def hunt(ctx, weapon: str):
         return
 
     user_id = str(ctx.author.id)
-
-    if not await check_user_data(ctx, user_id):
+    data = get_user(user_id)
+    if not data:
+        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo.")
         return
 
-    weapon_data = {
-        "g": {"item": ":gun: Súng săn", "ammo": 1, "reward_range": (0, 50000)},
-        "r": {"item": "<:RPG:1325750069189677087> RPG", "ammo": 10, "reward_range": (-2000000, 5000000)},
-        "a": {"item": "<:Awm:1325747265045794857> Awm", "ammo": 1, "reward_range": (5000, 1000000)},
-        "c": {"item": "<:cleaner:1347560866291257385> máy hút bụi", "ammo": 0, "reward_range": (3000000, 10000000)}
+    weapons = {
+        "g": { "emoji": ":gun: Súng săn", "ammo": 1, "range": (0, 50000) },
+        "r": { "emoji": "<:RPG:1325750069189677087> RPG", "ammo": 10, "range": (-2000000, 5000000) },
+        "a": { "emoji": "<:Awm:1325747265045794857> Awm", "ammo": 1, "range": (5000, 1000000) },
+        "c": { "emoji": "<:cleaner:1347560866291257385> máy hút bụi", "ammo": 0, "range": (3000000, 10000000) }
     }
 
-    if weapon not in weapon_data:
+    if weapon not in weapons:
         await ctx.reply("Vũ khí không hợp lệ!")
         return
 
     now = datetime.datetime.now()
-    last_hunt = user_data[user_id].get('last_hunt')
-    cooldown_time = 5 * 60
-
+    last_hunt = data.get("last_hunt")
     if last_hunt:
-        time_elapsed = (now - datetime.datetime.strptime(last_hunt, "%Y-%m-%d %H:%M:%S")).total_seconds()
-        if time_elapsed < cooldown_time:
-            minutes, seconds = divmod(int(cooldown_time - time_elapsed), 60)
-            await ctx.reply(f"Bạn cần chờ {minutes} phút {seconds} giây trước khi có thể săn tiếp!")
+        elapsed = (now - datetime.datetime.strptime(last_hunt, "%Y-%m-%d %H:%M:%S")).total_seconds()
+        if elapsed < 300:
+            remaining = int(300 - elapsed)
+            m, s = divmod(remaining, 60)
+            await ctx.reply(f"Chờ {m} phút {s} giây trước khi săn tiếp!")
             return
 
-    weapon_info = weapon_data[weapon]
-
-    # Kiểm tra số lượng vũ khí và đạn
-    user_items = user_data[user_id].get('items', {})
-    weapon_count = user_items.get(weapon_info["item"], 0)
-    ammo_count = user_items.get(":bullettrain_side: Viên đạn", 0)
+    weapon_info = weapons[weapon]
+    items = data.get("items", {})
+    weapon_count = items.get(weapon_info["emoji"], 0)
+    bullet_count = items.get(":bullettrain_side: Viên đạn", 0)
 
     if weapon_count < 1:
-        await ctx.reply(f"Bạn cần có {weapon_info['item']} để đi săn!")
+        await ctx.reply(f"Bạn cần {weapon_info['emoji']} để đi săn!")
+        return
+    if bullet_count < weapon_info["ammo"]:
+        await ctx.reply(f"Bạn cần {weapon_info['ammo']} viên đạn để đi săn!")
         return
 
-    if ammo_count < weapon_info["ammo"]:
-        await ctx.reply(f"Bạn cần có {weapon_info['ammo']} viên đạn để đi săn!")
-        return
-    
+    update = {
+        "$inc": {
+            "points": random.randint(*weapon_info["range"]),
+            "items.:bullettrain_side: Viên đạn": -weapon_info["ammo"]
+        },
+        "$set": { "last_hunt": now.strftime("%Y-%m-%d %H:%M:%S") }
+    }
+
     if weapon == "c":
-        del user_data[user_id]['items'][weapon_info["item"]]
+        update["$inc"].pop("items.:bullettrain_side: Viên đạn", None)
+        update["$unset"] = {f"items.{weapon_info['emoji']}": ""}
 
-    # Trừ đạn
-    user_data[user_id]['items'][":bullettrain_side: Viên đạn"] -= weapon_info["ammo"]
-    if user_data[user_id]['items'][":bullettrain_side: Viên đạn"] == 0:
-        del user_data[user_id]['items'][":bullettrain_side: Viên đạn"]
-
-    # Tính phần thưởng
-    hunt_reward = random.randint(*weapon_info["reward_range"])
-    user_data[user_id]['points'] += hunt_reward
-    user_data[user_id]['last_hunt'] = now.strftime("%Y-%m-%d %H:%M:%S")
-
-    save_user_data(user_data)
-    await ctx.reply(f"Bạn đã săn thành công và kiếm được {format_currency(hunt_reward)} {coin}!")
+    update_user(user_id, update)
+    reward = update["$inc"].get("points", 0)
+    await ctx.reply(f"Bạn đã săn được {format_currency(reward)} {coin}!")
 
 @bot.command(name="in", help='`$in <số điểm>`\n> bơm tiền vào công ty')
 async def invest(ctx, amount: int):
@@ -923,27 +938,30 @@ async def invest(ctx, amount: int):
         return
 
     user_id = str(ctx.author.id)
+    user = get_user(user_id)
 
-    if ':office: Công ty' in user_data[user_id]['items']:
-        if not get_user(user_id):
-            await ctx.reply("Người chơi không tồn tại.")
-            return
+    if user is None:
+        await ctx.reply("Người chơi không tồn tại.")
+        return
 
-        if amount <= 0:
-            await ctx.reply("Số điểm phải lớn hơn 0.")
-            return
+    if ':office: Công ty' not in user.get('items', {}):
+        await ctx.reply(f"{ctx.author.mention} Bạn làm đéo gì có :office: Công ty mà đầu tư :rofl:")
+        return
 
-        if user_data[user_id]["points"] < amount:
-            await ctx.reply(f"Bạn không có đủ {coin} để đầu tư.")
-            return
+    if amount <= 0:
+        await ctx.reply("Số điểm phải lớn hơn 0.")
+        return
 
-        user_data[user_id]["points"] -= amount
-        user_data[user_id]["company_balance"] += amount
+    if user['points'] < amount:
+        await ctx.reply(f"Bạn không có đủ {coin} để đầu tư.")
+        return
 
-        await ctx.reply(f"Bạn đã đầu tư {format_currency(amount)} {coin} vào công ty.")
-        save_user_data(user_data)
-    else:
-        await ctx.reply(f"{ctx.autor.mention} Bạn làm đéo gì có :office: Công ty mà đầu tư :rofl:")
+    # Cập nhật
+    user['points'] -= amount
+    user['company_balance'] = user.get('company_balance', 0) + amount
+    update_user(user_id, user)
+
+    await ctx.reply(f"Bạn đã đầu tư {format_currency(amount)} {coin} vào công ty.")
 
 @bot.command(name="wi", help='`$wi <số điểm>`\n> rút tiền ra')
 async def withdraw(ctx, amount: int):
@@ -951,8 +969,9 @@ async def withdraw(ctx, amount: int):
         return
 
     user_id = str(ctx.author.id)
+    user = get_user(user_id)
 
-    if not get_user(user_id):
+    if user is None:
         await ctx.reply("Người chơi không tồn tại.")
         return
 
@@ -960,12 +979,14 @@ async def withdraw(ctx, amount: int):
         await ctx.reply("Số điểm phải lớn hơn 0.")
         return
 
-    if user_data[user_id]["company_balance"] < amount:
+    if user.get('company_balance', 0) < amount:
         await ctx.reply(f"Công ty của bạn không có đủ {coin} để rút.")
         return
 
-    user_data[user_id]["company_balance"] -= amount
-    user_data[user_id]["points"] += amount
+    # Cập nhật
+    user['company_balance'] -= amount
+    user['points'] += amount
+    update_user(user_id, user)
 
     await ctx.reply(f"Bạn đã rút {format_currency(amount)} {coin} từ công ty.")
 
@@ -978,26 +999,28 @@ async def orob(ctx, member: discord.Member):
     victim_id = str(member.id)
     status = member.status
 
-    if orobber_id not in user_data:
-        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
+    orobber = get_user(orobber_id)
+    victim = get_user(victim_id)
 
-    if victim_id not in user_data:
+    if orobber is None:
+        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
+        return
+
+    if victim is None:
         await ctx.reply("Nạn nhân ko có trong dữ liệu của trò chơi.")
         return
 
     now = datetime.datetime.now()
-    last_rob = user_data[orobber_id].get('last_rob')
-    if last_rob is not None:
-        time_elapsed = (now - datetime.datetime.strptime(
-            last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
+    last_rob = orobber.get('last_rob')
+    if last_rob:
+        time_elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
         cooldown_time = 60 * 60
-
         if time_elapsed < cooldown_time:
-            if user_data[orobber_id]['items'].get(':fast_forward: Skip', 0) > 0:
-                user_data[orobber_id]['items'][':fast_forward: Skip'] -= 1
+            if orobber['items'].get(':fast_forward: Skip', 0) > 0:
+                orobber['items'][':fast_forward: Skip'] -= 1
                 await ctx.reply(f"Bạn đã sử dụng :fast_forward: Skip để bỏ qua thời gian chờ!")
             else:
-                minutes, seconds = divmod(int(cooldown_time - time_elapsed),60)
+                minutes, seconds = divmod(int(cooldown_time - time_elapsed), 60)
                 hours, minutes = divmod(minutes, 60)
                 await ctx.reply(f"Bạn phải chờ {hours} giờ {minutes} phút {seconds} giây trước khi cướp lại.")
                 return
@@ -1009,28 +1032,29 @@ async def orob(ctx, member: discord.Member):
     if victim_id == "1243079760062709854":
         await ctx.reply('Định làm gì với công ty của Admin Bot đếy, mày cẩn thận')
         return
-    
-    if user_data[orobber_id]['items'].get(':credit_card: thẻ công ty giả', 0) > 0:
-        user_data[orobber_id]['items'][':credit_card: thẻ công ty giả'] -= 1
+
+    if orobber['items'].get(':credit_card: thẻ công ty giả', 0) > 0:
+        orobber['items'][':credit_card: thẻ công ty giả'] -= 1
         if random.random() < 0.25:
             await ctx.reply(f"Bạn đã sử dụng Thẻ giả để rút {coin} của {member.name} và đã thành công!")
 
-            victim_points = user_data[victim_id].get('company_balance', 0)
-            if victim_points <= 0:
+            victim_balance = victim.get('company_balance', 0)
+            if victim_balance <= 0:
                 await ctx.reply(f"{member.name} không có {coin} để cướp!")
                 return
 
-            stolen_points = round(victim_points * 0.5)
+            stolen_points = round(victim_balance * 0.5)
 
-            user_data[victim_id]['company_balance'] = round(user_data[victim_id]['company_balance'] - stolen_points)
-            user_data[orobber_id]['points'] = round(user_data[orobber_id]['points'] + stolen_points)
+            victim['company_balance'] -= stolen_points
+            orobber['points'] += stolen_points
+            orobber['last_rob'] = now.strftime("%Y-%m-%d %H:%M:%S")
 
-            user_data[orobber_id]['last_rob'] = now.strftime("%Y-%m-%d %H:%M:%S")
-
-            save_user_data(user_data)
+            update_user(orobber_id, orobber)
+            update_user(victim_id, victim)
 
             await ctx.reply(f"Bạn đã rút được {format_currency(stolen_points)} {coin} từ {member.name}!")
         else:
+            update_user(orobber_id, orobber)
             await ctx.reply(f"Bạn đã sử dụng Thẻ giả để rút {coin} của {member.name} nhưng không thành công.")
             return
     else:
@@ -1045,22 +1069,25 @@ async def op(ctx, member: discord.Member):
     victim_id = str(member.id)
     success = 0.5
 
-    if killer_id not in user_data:
-        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng $start để tạo tài khoản.")
+    killer = get_user(killer_id)
+    victim = get_user(victim_id)
 
-    if victim_id not in user_data:
+    if killer is None:
+        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng $start để tạo tài khoản.")
+        return
+
+    if victim is None:
         await ctx.reply("Nạn nhân ko có trong dữ liệu của trò chơi.")
         return
 
     now = datetime.datetime.now()
-    last_rob = user_data[killer_id].get('last_rob')
-    if last_rob is not None:
+    last_rob = killer.get('last_rob')
+    cooldown_time = 60 * 60
+    if last_rob:
         time_elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
-        cooldown_time = 60 * 60
-
         if time_elapsed < cooldown_time:
-            if user_data[killer_id]['items'].get(':fast_forward: Skip', 0) > 0:
-                user_data[killer_id]['items'][':fast_forward: Skip'] -= 1
+            if killer['items'].get(':fast_forward: Skip', 0) > 0:
+                killer['items'][':fast_forward: Skip'] -= 1
                 await ctx.reply("Bạn đã sử dụng :fast_forward: Skip để bỏ qua thời gian chờ!")
             else:
                 remaining_time = cooldown_time - time_elapsed
@@ -1069,37 +1096,40 @@ async def op(ctx, member: discord.Member):
                 await ctx.reply(f"Bạn phải chờ {int(hours)} giờ {int(minutes)} phút {int(seconds)} giây trước khi săn lại.")
                 return
 
-    if user_data[killer_id]['items'].get(':bulb: Thông minh', 0) > 0:
-        if victim_id == killer_id:
-            await ctx.reply('mày tính tự solo à con, méo có đâu nhé :>')
-        else:
-            if user_data[killer_id]['items'].get('<:big_nao:1308790909353328640> siêu thông minh `Legendary`', 0) > 0:
-                success += 0.5
-
-            if random.random() < success:
-                user_data[killer_id]['items'][':bulb: Thông minh'] -= 1
-                await ctx.reply(f"Bạn đã sử dụng sự thông minh để ao trình {member.name} và đã thành công!")
-                victim_points = user_data[victim_id].get('smart', 0)
-                if victim_points <= 0:
-                    await ctx.reply(f"{member.name} không có học vấn để húp!")
-                    return
-
-                stolen_points = round(victim_points * 0.1)
-
-                user_data[victim_id]['smart'] = round(user_data[victim_id]['smart'] - stolen_points * 0.5)
-                user_data[killer_id]['smart'] = round(user_data[killer_id]['smart'] + stolen_points)
-                user_data[killer_id]['points'] = round(user_data[killer_id]['points'] + stolen_points)
-
-                user_data[killer_id]['last_rob'] = now.strftime("%Y-%m-%d %H:%M:%S")
-
-                save_user_data(user_data)
-
-                await ctx.reply(f"Bạn đã húp được {format_currency(stolen_points)} {coin}, học vấn từ {member.name}!")
-            else:
-                await ctx.reply(f"Bạn đã sử dụng sự thông minh để ao trình {member.name} nhưng không thành công.")
-                return
-    else:
+    if killer['items'].get(':bulb: Thông minh', 0) <= 0:
         await ctx.reply("Bạn làm đéo gì có sự thông minh :rofl:")
+        return
+
+    if victim_id == killer_id:
+        await ctx.reply('mày tính tự solo à con, méo có đâu nhé :>')
+        return
+
+    if killer['items'].get('<:big_nao:1308790909353328640> siêu thông minh `Legendary`', 0) > 0:
+        success += 0.5
+
+    if random.random() < success:
+        killer['items'][':bulb: Thông minh'] -= 1
+        await ctx.reply(f"Bạn đã sử dụng sự thông minh để ao trình {member.name} và đã thành công!")
+
+        victim_smart = victim.get('smart', 0)
+        if victim_smart <= 0:
+            await ctx.reply(f"{member.name} không có học vấn để húp!")
+            return
+
+        stolen_points = round(victim_smart * 0.1)
+        victim['smart'] -= round(stolen_points * 0.5)
+        killer['smart'] += stolen_points
+        killer['points'] += stolen_points
+        killer['last_rob'] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        update_user(killer_id, killer)
+        update_user(victim_id, victim)
+
+        await ctx.reply(f"Bạn đã húp được {format_currency(stolen_points)} {coin}, học vấn từ {member.name}!")
+    else:
+        killer['items'][':bulb: Thông minh'] -= 1
+        update_user(killer_id, killer)
+        await ctx.reply(f"Bạn đã sử dụng sự thông minh để ao trình {member.name} nhưng không thành công.")
 
 @bot.command(name="ping", help='`$ping`\n> xem độ trễ của bot')
 async def ping(ctx):
@@ -1111,18 +1141,14 @@ async def lb(ctx, kind: str = "a"):
     if not await check_permission(ctx):
         return
 
-    if not user_data:
-        await ctx.reply("Không có dữ liệu để hiển thị bảng xếp hạng.")
-        return
-
-    kind_to_function = {
-        "a": lambda data: create_leaderboard(data, "points"),
-        "o": lambda data: create_leaderboard(data, "company_balance"),
-        "s": lambda data: create_leaderboard(data, "smart"),
+    kind_map = {
+        "a": ("points", "🏦 Tài khoản"),
+        "o": ("company_balance", "🏢 Công ty"),
+        "s": ("smart", "📚 Học vấn"),
     }
 
-    create_function = kind_to_function.get(kind)
-    if not create_function:
+    field, label = kind_map.get(kind, (None, None))
+    if not field:
         await ctx.reply(
             "Loại bảng xếp hạng không hợp lệ. Vui lòng sử dụng:\n"
             "`$lb a` - Tài khoản\n"
@@ -1131,14 +1157,23 @@ async def lb(ctx, kind: str = "a"):
         )
         return
 
-    leaderboard = create_function(user_data)
+    top_users = users_col.find().sort(field, -1).limit(10)
+    leaderboard = ""
+    for idx, user in enumerate(top_users, start=1):
+        try:
+            member = await bot.fetch_user(int(user['_id']))
+            name = member.name
+        except:
+            name = f"Người chơi {user['_id']}"
+
+        score = user.get(field, 0)
+        leaderboard += f"**{idx}.** {name}: `{format_currency(score)}`\n"
 
     embed = discord.Embed(
-        title="Bảng xếp hạng",
-        description=leaderboard,
-        color=discord.Color.red()
+        title=f"Bảng xếp hạng {label}",
+        description=leaderboard or "Không có dữ liệu.",
+        color=discord.Color.gold()
     )
-
     await ctx.reply(embed=embed)
 
 @bot.command(name='gacha', help='`$gacha`\n> gacha ra những thứ hay ho')
@@ -1149,40 +1184,49 @@ async def gacha(ctx):
     user_id = str(ctx.author.id)
     user_roles = [role.name for role in ctx.author.roles]
 
-    # Đảm bảo truyền user_id vào check_user_data
-    if not await check_user_data(ctx, user_id):
+    user = users_col.find_one({"_id": user_id})
+    if not user:
+        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để bắt đầu.")
         return
 
     # Kiểm tra cooldown
     now = datetime.datetime.now()
-    last_gacha = user_data[user_id].get('last_gacha')
-    
+    last_gacha = user.get('last_gacha')
     if last_gacha:
         time_elapsed = (now - datetime.datetime.strptime(last_gacha, "%Y-%m-%d %H:%M:%S")).total_seconds()
-        cooldown_time = 60 * 60  # 1 giờ
-
-        if time_elapsed < cooldown_time:
-            minutes, seconds = divmod(int(cooldown_time - time_elapsed), 60)
+        if time_elapsed < 3600:
+            minutes, seconds = divmod(int(3600 - time_elapsed), 60)
             await ctx.reply(f"Bạn phải chờ {minutes} phút {seconds} giây trước khi quay gacha lại.")
             return
 
-    # Kiểm tra quyền và số tiền người dùng có
     if "Trung học Phổ thông" in user_roles:
-        if user_data[user_id].get('points', 0) < 10000000000:
+        if user.get('points', 0) < 10_000_000_000:
             await ctx.reply(f'Bạn không đủ {coin} để gacha!')
             return
-        
-        # Trừ tiền và điểm thông minh khi gacha
-        try:
-            user_data[user_id]['points'] -= 10000000000
-            user_data[user_id]['smart'] -= 1000000
-        except KeyError as e:
-            await ctx.reply("Có lỗi xảy ra trong quá trình trừ điểm.")
-            return
+
+        # Trừ tiền và thông minh
+        users_col.update_one(
+            {"_id": user_id},
+            {
+                "$inc": {
+                    "points": -10_000_000_000,
+                    "smart": -1_000_000
+                },
+                "$set": {
+                    "last_gacha": now.strftime("%Y-%m-%d %H:%M:%S")
+                }
+            }
+        )
 
         result = roll_gacha_from_pool()
-        item_name = result.get("name", "Không có tên vật phẩm")
-        rarity = result.get("rarity", "Không xác định")
+        item_name = result.get("name", "Không rõ")
+        rarity = result.get("rarity", "không xác định")
+
+        # Cập nhật vật phẩm
+        users_col.update_one(
+            {"_id": user_id},
+            {"$inc": {f"items.{item_name}": 1}}
+        )
 
         rarity_colors = {
             "tốt": discord.Color.green(),
@@ -1191,67 +1235,12 @@ async def gacha(ctx):
             "huyền thoại": discord.Color.orange()
         }
 
-        # Thêm item vào kho đồ
-        user_data[user_id]["items"][item_name] = user_data[user_id]["items"].get(item_name, 0) + 1
-
-        # Cập nhật thời gian gacha
-        user_data[user_id]['last_gacha'] = now.strftime("%Y-%m-%d %H:%M:%S")
-        save_user_data(user_data)
-
-        # Hiển thị kết quả gacha với màu sắc theo độ hiếm
         embed = discord.Embed(
             title="🎲 Gacha Roll 🎲",
             description=f"Bạn đã quay được: **{item_name}**\n🔹 Độ hiếm: `{rarity.upper()}`",
-            color=rarity_colors.get(rarity, discord.Color.gold())  # Mặc định màu vàng nếu lỗi
+            color=rarity_colors.get(rarity, discord.Color.gold())
         )
         await ctx.reply(embed=embed)
-
-@bot.command(name='slots', help='`$slots`\n> quay jackpot')
-async def slots(ctx):
-    if not await check_permission(ctx):
-        return
-    
-    user_id = str(ctx.author.id)
-    user_roles = [role.name for role in ctx.author.roles]
-
-    if not await check_user_data(ctx, user_id):
-        return
-
-    now = datetime.datetime.now()
-    last_rob = user_data[user_id].get('last_slots')
-    if last_rob is not None:
-        time_elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
-        cooldown_time = 60 * 60
-
-        if time_elapsed < cooldown_time:
-            minutes, seconds = divmod(int(cooldown_time - time_elapsed),60)
-            hours, minutes = divmod(minutes, 60)
-            await ctx.reply(f"Bạn phải chờ {hours} giờ {minutes} phút {seconds} giây trước khi quay slots tiếp lại.")
-            return
-        
-    if "Trung học Phổ thông" in user_roles:
-        if user_data[user_id]['points'] < 1000000000:
-            await ctx.reply(f'Bạn ko đủ {coin} để gacha!')
-            return
-
-        user_data[user_id]['points'] -= 1000000000
-
-        dice1, dice2, dice3 = random.randint(1, 6), random.randint(1, 6), random.randint(1, 6)
-
-        if dice1 == dice2 == dice3:
-            jackpot_amount = user_data['jackpot']
-            user_data[user_id]['points'] += jackpot_amount
-            user_data['jackpot'] = 1000000000
-            save_user_data(user_data)
-            await ctx.reply(f"`$$$` {dice_emojis[dice1]} `$$$`\n`$$`{dice_emojis[dice2]} {dice_emojis[dice3]}`$$`\nChúc mừng! Bạn đã thắng **Jackpot** trị giá {format_currency(jackpot_amount)} {coin}!")
-        else:
-            user_data['jackpot'] += 1000000000
-            save_user_data(user_data)
-            await ctx.reply(f"`$$$` {dice_emojis[dice1]} `$$$`\n`$$`{dice_emojis[dice2]} {dice_emojis[dice3]}`$$`\nOH NO! Bạn đã thua **Jackpot** trị giá 1000000000 {coin}!")
-    else:
-        await ctx.reply(f'Bạn chưa đạt trình độ `THPT (lớp 12)` để quay slots')
-
-    user_data[user_id]['last_slots'] = now.strftime("%Y-%m-%d %H:%M:%S")
 
 @bot.command(name='study', help='`$study`\n> Học tăng trình độ')
 async def study(ctx):
@@ -1260,133 +1249,32 @@ async def study(ctx):
 
     user_id = str(ctx.author.id)
     now = datetime.datetime.now()
-    last_study = user_data.get(user_id,{}).get('last_study')
 
-    if not await check_user_data(ctx, user_id):
+    user = users_col.find_one({"_id": user_id})
+    if not user:
+        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để bắt đầu.")
         return
 
-    if last_study is not None:
-        cooldown_time = 5 * 60
-        time_elapsed = (now - datetime.datetime.strptime(last_study, "%Y-%m-%d %H:%M:%S")).total_seconds()
+    last_study = user.get('last_study')
+    cooldown_time = 5 * 60  # 5 phút
 
+    if last_study:
+        time_elapsed = (now - datetime.datetime.strptime(last_study, "%Y-%m-%d %H:%M:%S")).total_seconds()
         if time_elapsed < cooldown_time:
             minutes, seconds = divmod(int(cooldown_time - time_elapsed), 60)
             await ctx.reply(f"Bạn cần chờ {minutes} phút {seconds} giây trước khi có thể học tiếp!")
             return
 
-    user_data.setdefault(user_id,{'smart':0,'points':0,'items':[],'company_balance':0})
-    user_data[user_id]['smart'] += 10
+    # Tăng smart và cập nhật last_study
+    users_col.update_one(
+        {"_id": user_id},
+        {
+            "$inc": {"smart": 10},
+            "$set": {"last_study": now.strftime("%Y-%m-%d %H:%M:%S")}
+        }
+    )
 
-    user_data[user_id]['last_study'] = now.strftime("%Y-%m-%d %H:%M:%S")
-
-    save_user_data(user_data)
-
-    await ctx.reply(f'Bạn vừa học xong ra chơi thôi!')
-
-@bot.command(name="plant", help="`$plant`\n> Trồng cây nếu có hạt giống.")
-async def plant(ctx):
-    if not await check_permission(ctx):
-        return
-
-    user_id = str(ctx.author.id)
-
-    if not await check_user_data(ctx, user_id):
-        return
-
-    if user_data[user_id]['items'].get(':seedling: Hạt giống', 0) < 1:
-        await ctx.reply("🌱 Bạn không có :seedling: Hạt giống để trồng. Hãy mua ở cửa hàng!")
-        return
-
-    if user_data[user_id].get("garden", {}).get("plant"):
-        await ctx.reply("🌱 Bạn đã có cây đang trồng rồi! Hãy thu hoạch trước khi trồng tiếp.")
-        return
-
-    class PlantChoiceView(View):
-        def __init__(self):
-            super().__init__(timeout=60)
-
-        async def plant_tree(self, interaction, plant_type, time_minutes, min_reward, max_reward):
-            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            user_data[user_id]["garden"] = {
-                "plant": plant_type,
-                "planted_at": now,
-                "time_required": time_minutes * 60,
-                "min_reward": min_reward,
-                "max_reward": max_reward
-            }
-
-            # Trừ hạt giống
-            user_data[user_id]["items"][":seedling: Hạt giống"] -= 1
-            if user_data[user_id]["items"][":seedling: Hạt giống"] <= 0:
-                del user_data[user_id]["items"][":seedling: Hạt giống"]
-
-            save_user_data(user_data)
-            await interaction.response.edit_message(content=f"🌱 Bạn đã trồng **{plant_type}**!", view=None)
-
-        @discord.ui.button(label="🍎 Táo (5 phút)", style=discord.ButtonStyle.success)
-        async def apple(self, interaction: discord.Interaction, button: Button):
-            await self.plant_tree(interaction, "Táo", 5, 100_000, 200_000)
-
-        @discord.ui.button(label="🍉 Dưa (10 phút)", style=discord.ButtonStyle.primary)
-        async def melon(self, interaction: discord.Interaction, button: Button):
-            await self.plant_tree(interaction, "Dưa", 10, 100_000, 300_000)
-
-        @discord.ui.button(label="🍐 Lê (20 phút)", style=discord.ButtonStyle.danger)
-        async def pear(self, interaction: discord.Interaction, button: Button):
-            await self.plant_tree(interaction, "Lê", 20, 100_000, 400_000)
-
-    view = PlantChoiceView()
-    await ctx.reply("🌿 Chọn loại cây bạn muốn trồng:", view=view)
-
-@bot.command(name="mygarden", help="`$mygarden`\n> Xem thông tin cây bạn đang trồng.")
-async def mygarden(ctx):
-    user_id = str(ctx.author.id)
-
-    if not await check_user_data(ctx, user_id):
-        return
-
-    garden = user_data[user_id].get("garden", {})
-    if not garden or not garden.get("plant"):
-        await ctx.reply("🌱 Bạn chưa trồng cây nào cả.")
-        return
-
-    planted_time = datetime.datetime.strptime(garden["planted_at"], "%Y-%m-%d %H:%M:%S")
-    elapsed = datetime.datetime.now() - planted_time
-    minutes = int(elapsed.total_seconds() // 60)
-
-    await ctx.reply(f"🌿 Cây **{garden['plant']}** của bạn đã trồng được {minutes} phút.")
-
-@bot.command(name="harvest", help="`$harvest`\n> Thu hoạch cây nếu đã đủ thời gian.")
-async def harvest(ctx):
-    if not await check_permission(ctx):
-        return
-    
-    user_id = str(ctx.author.id)
-
-    if not await check_user_data(ctx, user_id):
-        return
-
-    garden = user_data[user_id].get("garden", {})
-    if not garden or not garden.get("plant"):
-        await ctx.reply("🌱 Bạn chưa trồng cây nào để thu hoạch.")
-        return
-
-    planted_time = datetime.datetime.strptime(garden["planted_at"], "%Y-%m-%d %H:%M:%S")
-    now = datetime.datetime.now()
-    elapsed_seconds = (now - planted_time).total_seconds()
-
-    required = garden.get("time_required", 300)
-    if elapsed_seconds < required:
-        remaining = int((required - elapsed_seconds) // 60)
-        await ctx.reply(f"⏳ Cây **{garden['plant']}** chưa chín. Quay lại sau {remaining} phút nữa.")
-        return
-
-    reward = random.randint(garden["min_reward"], garden["max_reward"])
-    user_data[user_id]["points"] += reward
-    user_data[user_id]["garden"] = {}
-
-    save_user_data(user_data)
-    await ctx.reply(f"🌳 Bạn đã thu hoạch **{garden['plant']}** và nhận được {format_currency(reward)} {coin}!")
+    await ctx.reply("Bạn vừa học xong ra chơi thôi!")
 
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):
