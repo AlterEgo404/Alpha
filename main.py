@@ -10,6 +10,14 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import math
 import aiohttp
+from pymongo import MongoClient
+
+mongo_uri = "mongodb+srv://botuser:mypassword123@cluster0.7f1imlk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+client = MongoClient(mongo_uri)
+
+db = client["discord_bot"]
+users_col = db["users"]
+config_col = db["config"]
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$', intents=intents, help_command=None)
