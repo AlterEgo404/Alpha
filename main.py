@@ -1286,4 +1286,4 @@ async def clear_messages(ctx, amount: int):
 
     await ctx.channel.purge(limit=amount)
 
-bot.run('MTM2MjMxNDk1NzcxNDIzMTMyNg.GcETUJ.gA-0RbkMw8SoySpbsnYP7UUoeJf9g6wGpQ5yPw')
+bot.run('MTM2MjMxNDk1NzcxNDIzMTMyNg.G158C6.zi_SuQKzSvi1uPZJbsbAdmOq2VK3eED2DkgB8s')
