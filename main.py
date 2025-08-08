@@ -49,13 +49,14 @@ def save_json(file_name, data):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 # Load dữ liệu
-user_data = load_json('user_data.json')
+from data_handler import (
+    get_user, update_user, create_user, save_user_full,get_jackpot, update_jackpot, set_jackpot,create_leaderboard
+    )
 shop_data = load_json('shop_data.json')
-tu_vi = load_json('tu_vi.json')
-gacha_data = load_json('gacha_data.json')
-save_user_data = lambda data: save_json('user_data.json', data)
 save_shop_data = lambda data: save_json('shop_data.json', data)
+tu_vi = load_json('tu_vi.json')
 save_tu_vi = lambda data: save_json('tu_vi.json', data)
+gacha_data = load_json('gacha_data.json')
 save_gacha_data = lambda data: save_json('gacha_data.json', data)
 
 try:
@@ -66,28 +67,26 @@ except FileNotFoundError:
 
 async def update_company_balances():
     while True:
-        for user_id, data in user_data.items():
+        all_users = get_user("*")
+        for user_id, data in all_users.items():
             if isinstance(data, dict) and data.get("company_balance", 0) > 0:
                 balance = data["company_balance"]
-                # Random tăng hoặc giảm 1% số dư
                 modifier = random.choice([-0.01, 0.02])
                 new_balance = balance + balance * modifier
                 data["company_balance"] = max(0, int(new_balance))
+                update_user(user_id, {"company_balance": data["company_balance"]})
 
-        save_user_data(user_data)
-        await asyncio.sleep(30)  # Chờ trước khi bắt đầu vòng lặp mới
+        await asyncio.sleep(60)
 
 async def clean_zero_items():
     while True:
-        for user_id, data in user_data.items():
-            # Kiểm tra nếu data là một dict
+        all_users = get_user("*")
+        for user_id, data in all_users.items():
             if isinstance(data, dict) and "items" in data:
-                items_to_remove = [item for item, count in data["items"].items() if count <= 0]
-                for item in items_to_remove:
-                    del data["items"][item]
-
-        # Chờ 1 giây trước khi kiểm tra lại
-        await asyncio.sleep(1)
+                new_items = {item: count for item, count in data["items"].items() if count > 0}
+                if new_items != data["items"]:
+                    update_user(user_id, {"items": new_items})
+        await asyncio.sleep(10)
 
 async def check_permission(ctx):
     if ctx.author.id != 1196335145964285984 and ctx.channel.id != ALLOWED_CHANNEL_ID:
@@ -96,7 +95,7 @@ async def check_permission(ctx):
     return True
 
 async def check_user_data(ctx, user_id):
-    if user_id not in user_data:
+    if not get_user(user_id):
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
         return False
     return True
@@ -157,19 +156,21 @@ def format_item_display(item_counts):
     return "\n".join(item_display) if item_display else "Trống"
 
 def update_jackpot(loss_amount):
-    user_data['jackpot'] += loss_amount
-    save_user_data(user_data)
+    current = get_jackpot()
+    update_jackpot(loss_amount)
 
-def create_leaderboard(user_data, key="points"):
-    """Tạo bảng xếp hạng dựa trên key từ dữ liệu người dùng."""
+def create_leaderboard(key="points"):
+    """Tạo bảng xếp hạng từ MongoDB dựa trên key (mặc định là 'points')."""
+    all_users = get_user("*")
     sorted_users = sorted(
-        (user for user in user_data.items() if isinstance(user[1], dict) and key in user[1]),
+        ((user_id, data) for user_id, data in all_users.items()
+         if isinstance(data, dict) and key in data),
         key=lambda x: x[1][key],
-        reverse=True,
+        reverse=True
     )
 
     leaderboard = "\n".join(
-        f"> <@{user_id}>: {format_currency(data[key])} {coin}" 
+        f"> <@{user_id}>: {format_currency(data[key])} {coin}"
         for user_id, data in sorted_users
     )
 
@@ -208,8 +209,10 @@ async def on_ready():
     bot.loop.create_task(update_company_balances())
     bot.loop.create_task(clean_zero_items())
 
-if 'jackpot' not in user_data:
-    user_data['jackpot'] = 1000000000
+    # Kiểm tra nếu chưa có jackpot trong DB thì tạo mới
+    if get_jackpot() is None:
+        set_jackpot(1000000000)
+        print("Đã khởi tạo jackpot mặc định.")
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -541,7 +544,7 @@ async def ou(ctx, bet: str, choice: str):
 
     user_id = str(ctx.author.id)
 
-    if user_id not in user_data:
+    if not get_user(user_id):
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
 
     if bet.lower() == 'all':
@@ -604,7 +607,7 @@ async def daily(ctx):
 
     user_id = str(ctx.author.id)
 
-    if user_id not in user_data:
+    if not get_user(user_id):
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
 
     last_daily = user_data[user_id].get('last_daily')
@@ -646,7 +649,7 @@ async def prog(ctx):
 
     user_id = str(ctx.author.id)
 
-    if user_id not in user_data:
+    if not get_user(user_id):
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
 
     last_beg = user_data[user_id].get('last_beg')
@@ -922,7 +925,7 @@ async def invest(ctx, amount: int):
     user_id = str(ctx.author.id)
 
     if ':office: Công ty' in user_data[user_id]['items']:
-        if user_id not in user_data:
+        if not get_user(user_id):
             await ctx.reply("Người chơi không tồn tại.")
             return
 
@@ -949,7 +952,7 @@ async def withdraw(ctx, amount: int):
 
     user_id = str(ctx.author.id)
 
-    if user_id not in user_data:
+    if not get_user(user_id):
         await ctx.reply("Người chơi không tồn tại.")
         return
 
