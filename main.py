@@ -50,7 +50,9 @@ def save_json(file_name, data):
 
 # Load dữ liệu
 from data_handler import (
-    get_user, update_user, create_user, save_user_full,get_jackpot, update_jackpot, set_jackpot,create_leaderboard
+    get_user, update_user, create_user, save_user_full,
+    get_jackpot, update_jackpot, set_jackpot,
+    create_leaderboard, users_col  # ✅ thêm dòng này
     )
 shop_data = load_json('shop_data.json')
 save_shop_data = lambda data: save_json('shop_data.json', data)
