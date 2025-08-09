@@ -1,5 +1,15 @@
+# Discord bot
 discord.py==2.4.0
+aiohttp
+
+# Xử lý ảnh
+Pillow
+
+# Xử lý dữ liệu
 requests==2.26.0
 numpy>=1.21.0
 pandas
 pymongo
+
+# Các thư viện cần cho Render khi deploy
+python-dotenv
