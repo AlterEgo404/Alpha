@@ -13,3 +13,4 @@ pymongo
 
 # Các thư viện cần cho Render khi deploy
 python-dotenv
+flask

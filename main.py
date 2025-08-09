@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import math
 import aiohttp
+from keep_alive import keep_alive
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$', intents=intents, help_command=None)
@@ -1286,4 +1287,5 @@ async def clear_messages(ctx, amount: int):
 
     await ctx.channel.purge(limit=amount)
 
+keep_alive()  # Chạy web server
 bot.run('MTM2MjMxNDk1NzcxNDIzMTMyNg.G158C6.zi_SuQKzSvi1uPZJbsbAdmOq2VK3eED2DkgB8s')
