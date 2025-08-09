@@ -1,0 +1,5 @@
+discord.py==2.4.0
+requests==2.26.0
+numpy>=1.21.0
+pandas
+pymongo
