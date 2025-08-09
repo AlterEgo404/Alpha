@@ -1288,4 +1288,5 @@ async def clear_messages(ctx, amount: int):
     await ctx.channel.purge(limit=amount)
 
 keep_alive()  # Chạy web server
-bot.run('MTM2MjMxNDk1NzcxNDIzMTMyNg.G158C6.zi_SuQKzSvi1uPZJbsbAdmOq2VK3eED2DkgB8s')
+import os
+bot.run(os.getenv("DISCORD_TOKEN"))
