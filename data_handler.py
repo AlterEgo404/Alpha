@@ -1,52 +1,102 @@
-<<<<<<< HEAD
-mongo_uri = "mongodb+srv://botuser:mypassword123@cluster0.7f1imlk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-client = MongoClient(mongo_uri)
-=======
-from pymongo import MongoClient
->>>>>>> 8076de129ca7a8bc156c5569f2036d5487e0ed22
+import os
+from typing import Any, Dict, Optional
 
-mongo_uri = "mongodb+srv://botuser:mypassword123@cluster0.7f1imlk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-client = MongoClient(mongo_uri)
+from pymongo import MongoClient, ASCENDING
 
-db = client["discord_bot"]
+# === KẾT NỐI MONGO (an toàn) ===
+MONGO_URI = os.getenv("MONGO_URI")
+if not MONGO_URI:
+    raise RuntimeError("Thiếu biến môi trường MONGO_URI")
+
+_client = MongoClient(MONGO_URI)
+
+db = _client["discord_bot"]
 users_col = db["users"]
 config_col = db["config"]
 
-def get_user(user_id: str):
+# Tạo index cơ bản (id người dùng & vài trường phổ biến)
+users_col.create_index([("_id", ASCENDING)], unique=True)
+# Tối ưu truy vấn leaderboard (không bắt buộc, nhưng hữu ích):
+for f in ("points", "company_balance", "smart"):
+    try:
+        users_col.create_index([(f, ASCENDING)])
+    except Exception:
+        pass
+
+
+# === USER HELPERS ===
+def get_user(user_id: str) -> Optional[Dict[str, Any]]:
+    """Lấy user theo _id; trả None nếu không có."""
     return users_col.find_one({"_id": user_id})
 
-def create_user(user_id: str, default_data: dict = None):
+
+def create_user(user_id: str, default_data: Optional[Dict[str, Any]] = None) -> None:
+    """
+    Tạo user mới nếu chưa tồn tại. Không ghi đè user cũ.
+    """
     if get_user(user_id) is None:
-        default_data = default_data or {
+        doc = default_data or {
             "_id": user_id,
             "points": 0,
             "items": {},
             "smart": 0,
-            "streak": 0
+            "streak": 0,
         }
-        users_col.insert_one(default_data)
+        # đảm bảo _id đúng
+        doc["_id"] = user_id
+        users_col.insert_one(doc)
 
-def update_user(user_id: str, update_dict: dict):
-    users_col.update_one({"_id": user_id}, {"$set": update_dict}, upsert=True)
 
-def save_user_full(user_id: str, full_data: dict):
+def update_user(user_id: str, update_dict: Dict[str, Any]) -> None:
+    """
+    Cập nhật user. Nếu update_dict đã chứa Mongo operators ($inc/$set/...) thì dùng nguyên vẹn.
+    Nếu KHÔNG chứa operator, tự bọc vào $set.
+    """
+    if not update_dict:
+        return
+
+    has_operator = any(k.startswith("$") for k in update_dict.keys())
+    update_payload = update_dict if has_operator else {"$set": update_dict}
+
+    users_col.update_one({"_id": user_id}, update_payload, upsert=True)
+
+
+def save_user_full(user_id: str, full_data: Dict[str, Any]) -> None:
+    """
+    Ghi đè toàn bộ document user (replace).
+    """
+    full_data = dict(full_data or {})
     full_data["_id"] = user_id
     users_col.replace_one({"_id": user_id}, full_data, upsert=True)
 
-def get_jackpot():
+
+# === JACKPOT HELPERS ===
+def get_jackpot() -> Optional[int]:
+    """
+    Trả về giá trị jackpot hoặc None nếu chưa có document.
+    (Để main có thể khởi tạo mặc định khi None.)
+    """
     jackpot_doc = config_col.find_one({"_id": "jackpot"})
-    return jackpot_doc["value"] if jackpot_doc else 0
+    return jackpot_doc["value"] if jackpot_doc and "value" in jackpot_doc else None
 
-def update_jackpot(amount):
-    config_col.update_one({"_id": "jackpot"}, {"$inc": {"value": amount}}, upsert=True)
 
-def set_jackpot(value):
-    config_col.update_one({"_id": "jackpot"}, {"$set": {"value": value}}, upsert=True)
-
-def create_leaderboard(key="points"):
-    sorted_users = users_col.find({key: {"$exists": True}}).sort(key, -1)
-    from main import format_currency, coin
-    leaderboard = "\n".join(
-        f"> <@{user['_id']}>: {format_currency(user.get(key, 0))} {coin}" for user in sorted_users
+def update_jackpot(amount: int) -> None:
+    """
+    Tăng/giảm jackpot theo amount (có thể âm/dương).
+    """
+    config_col.update_one(
+        {"_id": "jackpot"},
+        {"$inc": {"value": int(amount)}},
+        upsert=True,
     )
-    return leaderboard or "Không có dữ liệu."
+
+
+def set_jackpot(value: int) -> None:
+    """
+    Đặt jackpot = value.
+    """
+    config_col.update_one(
+        {"_id": "jackpot"},
+        {"$set": {"value": int(value)}},
+        upsert=True,
+    )

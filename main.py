@@ -1,29 +1,49 @@
-import discord
-from discord.ext import commands
-from discord.ui import View, Button
-import json
 import os
+import io
+import json
+import math
 import random
 import datetime
 import asyncio
-from PIL import Image, ImageDraw, ImageFont
-import io
-import math
+import traceback
+
+import discord
+from discord.ext import commands
+from discord.ui import View, Button
+
 import aiohttp
+from PIL import Image, ImageDraw, ImageFont
+
+# ==== DB & internal ====
+from pymongo import MongoClient
 from keep_alive import keep_alive
 
-mongo_uri = "mongodb+srv://botuser:mypassword123@cluster0.7f1imlk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-client = MongoClient(mongo_uri)
+# ---- ENV & Secrets ----
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")  # bắt buộc
+MONGO_URI = os.getenv("MONGO_URI")          # bắt buộc
 
+if not DISCORD_TOKEN:
+    raise RuntimeError("Thiếu biến môi trường DISCORD_TOKEN")
+if not MONGO_URI:
+    raise RuntimeError("Thiếu biến môi trường MONGO_URI")
+
+# ---- Mongo ----
+client = MongoClient(MONGO_URI)
+
+# Load dữ liệu & handler
+from data_handler import (
+    get_user, update_user, create_user, save_user_full,
+    get_jackpot, update_jackpot as dh_update_jackpot, set_jackpot,
+    users_col
+)
+
+# ---- Discord ----
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$', intents=intents, help_command=None)
 
-def draw_text_with_outline(draw, text, position, font, outline_color="black", fill_color="white"):
-    x, y = position
-    offsets = [(-2, 0), (2, 0), (0, -2), (0, 2), (-2, -2), (2, -2), (-2, 2), (2, 2)]
-    for ox, oy in offsets:
-        draw.text((x + ox, y + oy), text, font=font, fill=outline_color)
-    draw.text((x, y), text, font=font, fill=fill_color)
+# ---- Constants ----
+ALLOWED_CHANNEL_ID = 1347480186198949920
+coin = "<:meme_coin:1362951683814199487>"
 
 dice_emojis = {
     0: "<a:dice_roll:1362951541132099584>",
@@ -32,71 +52,77 @@ dice_emojis = {
     3: "<:dice_3:1362951621717266463>",
     4: "<:dice_4:1362951636573487227>",
     5: "<:dice_5:1362951651853336727>",
-    6: "<:dice_6:1362951664729854152>"
+    6: "<:dice_6:1362951664729854152>",
 }
 
-coin = "<:meme_coin:1362951683814199487>"
-
+# ---- JSON helpers ----
 def load_json(file_name, default_data=None):
-    """Load dữ liệu từ file JSON. Nếu file không tồn tại, tạo mới với dữ liệu mặc định."""
     if not os.path.exists(file_name):
         default_data = default_data or {}
         with open(file_name, 'w', encoding='utf-8') as f:
             json.dump(default_data, f, ensure_ascii=False, indent=4)
-
     with open(file_name, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 def save_json(file_name, data):
-    """Lưu dữ liệu vào file JSON."""
     with open(file_name, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# Load dữ liệu
-from data_handler import (
-    get_user, update_user, create_user, save_user_full,
-    get_jackpot, update_jackpot, set_jackpot,
-    create_leaderboard, users_col  # ✅ thêm dòng này
-    )
 shop_data = load_json('shop_data.json')
 save_shop_data = lambda data: save_json('shop_data.json', data)
+
 tu_vi = load_json('tu_vi.json')
 save_tu_vi = lambda data: save_json('tu_vi.json', data)
+
 gacha_data = load_json('gacha_data.json')
 save_gacha_data = lambda data: save_json('gacha_data.json', data)
 
 try:
-    with open("backgrounds.json", "r") as f:
+    with open("backgrounds.json", "r", encoding="utf-8") as f:
         user_backgrounds = json.load(f)
 except FileNotFoundError:
     user_backgrounds = {}
 
-async def update_company_balances():
-    while True:
-        all_users = get_user("*")
-        for user_id, data in all_users.items():
-            if isinstance(data, dict) and data.get("company_balance", 0) > 0:
-                balance = data["company_balance"]
-                modifier = random.choice([-0.01, 0.02])
-                new_balance = balance + balance * modifier
-                data["company_balance"] = max(0, int(new_balance))
-                update_user(user_id, {"company_balance": data["company_balance"]})
+# ---- Image/Text helpers ----
+def draw_text_with_outline(draw, text, position, font, outline_color="black", fill_color="white"):
+    x, y = position
+    offsets = [(-2, 0), (2, 0), (0, -2), (0, 2), (-2, -2), (2, -2), (-2, 2), (2, 2)]
+    for ox, oy in offsets:
+        draw.text((x + ox, y + oy), text, font=font, fill=outline_color)
+    draw.text((x, y), text, font=font, fill=fill_color)
 
-        await asyncio.sleep(60)
+def format_currency(amount):
+    try:
+        return f"{int(amount):,}".replace(",", " ")
+    except Exception:
+        return str(amount)
 
-async def clean_zero_items():
-    while True:
-        all_users = get_user("*")
-        for user_id, data in all_users.items():
-            if isinstance(data, dict) and "items" in data:
-                new_items = {item: count for item, count in data["items"].items() if count > 0}
-                if new_items != data["items"]:
-                    update_user(user_id, {"items": new_items})
-        await asyncio.sleep(10)
+def count_items(items):
+    counts = {}
+    for name in items or {}:
+        counts[name] = counts.get(name, 0) + 1
+    return counts
 
+# ---- Gacha ----
+def roll_gacha_from_pool():
+    rarity_list = list(gacha_data["rarity_chance"].keys())
+    rarity_weights = list(gacha_data["rarity_chance"].values())
+    selected_rarity = random.choices(rarity_list, weights=rarity_weights, k=1)[0]
+    item_name = random.choice(gacha_data["gacha_pool"][selected_rarity])
+    return {"name": item_name, "rarity": selected_rarity}
+
+def calculate_level_and_progress(smart):
+    level = int(math.log2(smart / 5 + 1)) + 1
+    needed_smart = 5 * ((2 ** (level - 1)) - 1)
+    current_smart = max(0, smart - 5 * ((2 ** (level - 2)) - 1)) if level > 1 else smart
+    next_level_needed_smart = 5 * ((2 ** level) - 1)
+    progress_percentage = min((smart / next_level_needed_smart) * 100, 100) if next_level_needed_smart > 0 else 0
+    return level, round(progress_percentage, 2), next_level_needed_smart
+
+# ---- Permissions & user checks ----
 async def check_permission(ctx):
     if ctx.author.id != 1196335145964285984 and ctx.channel.id != ALLOWED_CHANNEL_ID:
-        await ctx.reply(f"Lệnh này chỉ có thể được sử dụng trong <#1347480186198949920>")
+        await ctx.reply(f"Lệnh này chỉ có thể được sử dụng trong <# {ALLOWED_CHANNEL_ID} >")
         return False
     return True
 
@@ -106,118 +132,71 @@ async def check_user_data(ctx, user_id):
         return False
     return True
 
-async def fetch_image(url):
+# ---- HTTP session (reused) ----
+http_session: aiohttp.ClientSession | None = None
+
+async def fetch_image(url: str) -> Image.Image | None:
+    """Tải ảnh và trả về Image RGBA. Trả None nếu lỗi."""
+    if not url or not url.startswith(("http://", "https://")):
+        return None
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    print(f"Lỗi tải ảnh: {resp.status} - {url}")
-                    return None
-                image_bytes = await resp.read()
-
-        # Kiểm tra dữ liệu có phải ảnh hợp lệ không
-        image = Image.open(io.BytesIO(image_bytes))
-        return image.convert("RGBA")  # Chuyển thành RGBA để tránh lỗi khi dán ảnh
-
+        assert http_session is not None
+        async with http_session.get(url) as resp:
+            if resp.status != 200:
+                print(f"Lỗi tải ảnh: {resp.status} - {url}")
+                return None
+            data = await resp.read()
+        img = Image.open(io.BytesIO(data))
+        return img.convert("RGBA")
     except Exception as e:
         print(f"Lỗi khi tải ảnh: {e}")
         return None
-    
-async def update_roles(ctx, member, level):
-    """Cập nhật vai trò cho người dùng dựa trên cấp độ."""
-    for role_info in tu_vi.values():
-        role = ctx.guild.get_role(role_info["id"])
-        if role and role in member.roles:
-            await member.remove_roles(role)
 
-    role_name = None
-    for name, info in sorted(tu_vi.items(), key=lambda x: x[1]["level_min"], reverse=True):
-        if level >= info["level_min"]:
-            role_name = name
-            role_id = info["id"]
-            break
+# ---- Background tasks ----
+async def update_company_balances():
+    """Cứ 60s: biến động dương/lỗ nhẹ với balance công ty."""
+    while True:
+        try:
+            cursor = users_col.find({"company_balance": {"$gt": 0}}, {"company_balance": 1})
+            for doc in cursor:
+                uid = doc["_id"]
+                balance = doc.get("company_balance", 0)
+                modifier = random.choice([-0.01, 0.02])
+                new_balance = max(0, int(balance + balance * modifier))
+                if new_balance != balance:
+                    update_user(uid, {"company_balance": new_balance})
+        except Exception:
+            traceback.print_exc()
+        await asyncio.sleep(60)
 
-    if role_name:
-        role = ctx.guild.get_role(role_id)
-        if role and role not in member.roles:
-            await member.add_roles(role)
-    else:
-        role_name = "None"
+async def clean_zero_items():
+    """Cứ 10s: xoá item có số lượng <= 0 để gọn DB."""
+    while True:
+        try:
+            cursor = users_col.find({"items": {"$exists": True}})
+            for doc in cursor:
+                uid = doc["_id"]
+                items = doc.get("items", {}) or {}
+                new_items = {k: v for k, v in items.items() if isinstance(v, int) and v > 0}
+                if new_items != items:
+                    update_user(uid, {"items": new_items})
+        except Exception:
+            traceback.print_exc()
+        await asyncio.sleep(10)
 
-    return role_name
-
-def count_items(items):
-    """Đếm số lượng từng loại item."""
-    item_counts = {}
-    for item_name in items:
-        item_counts[item_name] = item_counts.get(item_name, 0) + 1
-    return item_counts
-
-def format_item_display(item_counts):
-    """Định dạng hiển thị danh sách đồ."""
-    item_display = []
-    for item_name, count in item_counts.items():
-        icon = shop_data.get(item_name, {}).get('icon', '')
-        item_display.append(f"`{count}` {icon} {item_name}" if icon else f"`{count}` {item_name}")
-    return "\n".join(item_display) if item_display else "Trống"
-
-def update_jackpot(loss_amount):
-    current = get_jackpot()
-    update_jackpot(loss_amount)
-
-def create_leaderboard(key="points"):
-    """Tạo bảng xếp hạng từ MongoDB dựa trên key (mặc định là 'points')."""
-    all_users = get_user("*")
-    sorted_users = sorted(
-        ((user_id, data) for user_id, data in all_users.items()
-         if isinstance(data, dict) and key in data),
-        key=lambda x: x[1][key],
-        reverse=True
-    )
-
-    leaderboard = "\n".join(
-        f"> <@{user_id}>: {format_currency(data[key])} {coin}"
-        for user_id, data in sorted_users
-    )
-
-    return leaderboard if leaderboard else "Không có dữ liệu."
-
-def calculate_level_and_progress(smart):
-    level = int(math.log2(smart / 5 + 1)) + 1
-    needed_smart = 5 * ((2 ** (level - 1)) - 1)
-    current_smart = max(0, smart - 5 * ((2 ** (level - 2)) - 1)) if level > 1 else smart
-    
-    next_level_needed_smart = 5 * ((2 ** level) - 1)
-    progress_percentage = min((smart / next_level_needed_smart) * 100, 100) if next_level_needed_smart > 0 else 0
-
-    return level, round(progress_percentage, 2), next_level_needed_smart
-
-def roll_gacha_from_pool():
-    # Bước 1: Random chọn nhóm trước
-    rarity_list = list(gacha_data["rarity_chance"].keys())
-    rarity_weights = list(gacha_data["rarity_chance"].values())
-
-    selected_rarity = random.choices(rarity_list, weights=rarity_weights, k=1)[0]
-
-    # Bước 2: Random vật phẩm trong nhóm đã chọn
-    item_name = random.choice(gacha_data["gacha_pool"][selected_rarity])
-
-    return {"name": item_name, "rarity": selected_rarity}
-
-def format_currency(amount):
-    return f"{amount:,.0f}".replace(",", " ")
-
-ALLOWED_CHANNEL_ID = 1347480186198949920
-
+# ==== EVENTS ====
 @bot.event
 async def on_ready():
+    global http_session
     print(f'Bot đã đăng nhập với tên {bot.user}')
+    http_session = aiohttp.ClientSession()
+
     bot.loop.create_task(update_company_balances())
     bot.loop.create_task(clean_zero_items())
 
-    # Kiểm tra nếu chưa có jackpot trong DB thì tạo mới
+    # Khởi tạo jackpot nếu chưa có
     if get_jackpot() is None:
-        set_jackpot(1000000000)
+        set_jackpot(1_000_000_000)
         print("Đã khởi tạo jackpot mặc định.")
 
 @bot.event
@@ -235,9 +214,22 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.CheckFailure):
         await ctx.reply("❗Bạn không được phép sử dụng lệnh này ở đây.")
     else:
-        # In lỗi chi tiết ra console để dễ debug
-        print(f"[LỖI] {type(error).__name__}: {error}")
+        # In đầy đủ stacktrace cho dễ debug
+        traceback.print_exc()
         await ctx.reply("⚠️ Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau!")
+
+@bot.event
+async def on_close():
+    # đóng session HTTP nếu có
+    global http_session
+    try:
+        if http_session and not http_session.closed:
+            await http_session.close()
+    finally:
+        http_session = None
+
+# ==== COMMANDS ==== 
+# (Phần dưới GIỮ NGUYÊN đa số logic của bạn; chỉ sửa các điểm lỗi/bảo mật)
 
 @bot.command(name="start", help='`$start`\n> Khởi tạo tài khoản')
 async def start(ctx):
@@ -248,73 +240,42 @@ async def start(ctx):
         await ctx.reply(f"Bạn đã có tài khoản rồi, {ctx.author.mention} ơi! Không cần tạo lại nữa.")
         return
 
-    # Tạo dữ liệu người dùng mới
-    user_data = {
-        "points": 10000,
-        "items": {},
-        "smart": 100
-    }
-
-    # Lưu vào database (hoặc file .json nếu bạn chưa chuyển sang MongoDB)
+    user_data = {"points": 10000, "items": {}, "smart": 100}
     create_user(user_id, user_data)
 
-    # Thêm role nếu chưa có
     role_id = 1316985467853606983
     role = ctx.guild.get_role(role_id)
     if role:
         if role not in member.roles:
             await member.add_roles(role)
-        else:
-            print(f"{member.name} đã có vai trò {role.name}")
     else:
         await ctx.reply("Không thể tìm thấy vai trò cần thiết trong server.")
 
-    # Thông báo cho người dùng
     await ctx.reply(f"Tài khoản của bạn đã được tạo thành công, {ctx.author.mention}!")
 
 @bot.command(name="info", help='`$info`\n> xem thông tin của Bot')
 async def info(ctx):
-    if not await check_permission(ctx):
-        return
-
-    embed = discord.Embed(
-        title="📊 Thông tin Bot",
-        color=discord.Color.red()
-    )
-    embed.add_field(
-        name="👩‍💻 Nhà phát triển",
-        value="```ansi\n[2;31mAlpha[0m```",
-        inline=True
-    )
-    embed.add_field(
-        name="Phiên bản Bot",
-        value="```ansi\n[2;34m2.0.0[0m```"
-    )
-    embed.set_thumbnail(
-        url="https://cdn.discordapp.com/attachments/1322746396142604378/1322746745440043143/2.png?ex=6771ff67&is=6770ade7&hm=a9ec85dbd4076a807af3bccecb32e2eb8bd4b577d2a34f6e8d95dfbc4a9f327a&"
-    )
-
+    if not await check_permission(ctx): return
+    embed = discord.Embed(title="📊 Thông tin Bot", color=discord.Color.red())
+    embed.add_field(name="👩‍💻 Nhà phát triển", value="```ansi\n[2;31mAlpha[0m```", inline=True)
+    embed.add_field(name="Phiên bản Bot", value="```ansi\n[2;34m2.0.0[0m```")
+    embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1322746396142604378/1322746745440043143/2.png")
     await ctx.reply(embed=embed)
 
 @bot.command(name="jar", help='`$jar`\n> xem hũ jackpot')
 async def jp(ctx):
-    if not await check_permission(ctx):
-        return
-
-    jackpot_amount = format_currency(get_jackpot())
+    if not await check_permission(ctx): return
+    jackpot_amount = format_currency(get_jackpot() or 0)
     await ctx.reply(f"💰 **Jackpot hiện tại:** {jackpot_amount} {coin}")
 
 @bot.command(name="mk", help='`$mk`\n> xem cửa hàng')
 async def shop(ctx):
-    if not await check_permission(ctx):
-        return
-
+    if not await check_permission(ctx): return
     embed = discord.Embed(
         title="🏬 **Cửa hàng**",
-        description="Mua bằng lệnh `$buy <id> <số lượng>`.\nBán bằng lệnh `$sell <id> <số lượng>`.",
+        description="Mua: `$buy <id> <số lượng>` • Bán: `$sell <id> <số lượng>`",
         color=discord.Color.red()
     )
-
     for item_id, item in shop_data.items():
         name = item.get("name", "Không tên")
         price = item.get("price", 0)
@@ -324,159 +285,159 @@ async def shop(ctx):
             value=f"`{format_currency(price)}` {coin}",
             inline=True
         )
-
     await ctx.reply(embed=embed)
 
 @bot.command(name="buy")
 async def buy(ctx, item_id: str, quantity: int):
-    if not await check_permission(ctx):
-        return
-
+    if not await check_permission(ctx): return
     user_id = str(ctx.author.id)
 
-    if not await check_user_data(ctx, user_id):
-        return
-
+    if not await check_user_data(ctx, user_id): return
     if item_id not in shop_data:
         await ctx.reply("Không tìm thấy mặt hàng trong cửa hàng.")
         return
-
     if quantity <= 0:
         await ctx.reply("Số lượng phải lớn hơn không.")
         return
 
     item_data = shop_data[item_id]
     item_name = item_data['name']
-
     user = get_user(user_id)
     if not user:
         await ctx.reply("Không tìm thấy dữ liệu người dùng.")
         return
 
-    user_items = user.get('items', {})
-    total_price = item_data['price'] * quantity
+    user_items = user.get('items', {}) or {}
+    total_price = int(item_data['price']) * int(quantity)
 
-    if total_price > user['points']:
-        await ctx.reply("Bạn làm đéo gì có đủ tiền mà đòi mua")
+    if total_price > user.get('points', 0):
+        await ctx.reply("Bạn không đủ tiền để mua món này.")
         return
 
     if item_id == "01" and "company_balance" not in user:
         user["company_balance"] = 0
 
-    user['points'] -= total_price
-    user_items[item_name] = user_items.get(item_name, 0) + quantity
+    user['points'] = user.get('points', 0) - total_price
+    user_items[item_name] = int(user_items.get(item_name, 0)) + int(quantity)
     user['items'] = user_items
-
     update_user(user_id, user)
 
     await ctx.reply(f"Bạn đã mua {quantity} {item_name}.")
 
 @bot.command(name="sell")
 async def sell(ctx, item_id: str, quantity: int):
-    if not await check_permission(ctx):
-        return
-
+    if not await check_permission(ctx): return
     user_id = str(ctx.author.id)
 
-    if not await check_user_data(ctx, user_id):
-        return
-
+    if not await check_user_data(ctx, user_id): return
     if item_id not in shop_data:
-        await ctx.reply("Méo thấy mặt hàng này trong cửa hàng.")
+        await ctx.reply("Không thấy mặt hàng này trong cửa hàng.")
         return
-
     if quantity <= 0:
         await ctx.reply("Số lượng phải lớn hơn không.")
         return
 
     item_data = shop_data[item_id]
     item_name = item_data['name']
-    selling_price = round(item_data['price'] * quantity * 0.9)
+    selling_price = round(int(item_data['price']) * int(quantity) * 0.9)
 
     user = get_user(user_id)
     if not user:
         await ctx.reply("Không tìm thấy dữ liệu người dùng.")
         return
 
-    user_items = user.get('items', {})
-    current_quantity = user_items.get(item_name, 0)
+    user_items = user.get('items', {}) or {}
+    current_quantity = int(user_items.get(item_name, 0))
 
     if current_quantity < quantity:
         await ctx.reply("Bạn không có đủ mặt hàng này để bán.")
         return
 
-    user_items[item_name] -= quantity
+    user_items[item_name] = current_quantity - quantity
 
     if item_id == "01" and user_items.get(":office: Công ty", 0) == 0:
         user.pop("company_balance", None)
 
-    user['points'] += selling_price
+    user['points'] = int(user.get('points', 0)) + selling_price
     user['items'] = user_items
-
     update_user(user_id, user)
 
-    await ctx.reply(f"Bạn đã bán {quantity} {item_name} và nhận được {format_currency(selling_price)} {coin}.")
+    await ctx.reply(f"Bạn đã bán {quantity} {item_name} và nhận {format_currency(selling_price)} {coin}.")
 
 @bot.command(name="ttsp", help="`$ttsp <id sản phẩm>`\n> Hiển thị thông tin sản phẩm")
 async def ttsp(ctx, item_id):
-    if item_id in shop_data:
-        item_data = shop_data[item_id]
-        embed = discord.Embed(
-            title=f"Thông tin sản phẩm:\n{item_data['name']}",
-            color=discord.Color.red()
-        )
-        embed.add_field(name="Mô tả", value=item_data['description'], inline=False)
-        embed.add_field(name="Giá mua", value=f'`{format_currency(item_data["price"])}` {coin}', inline=True)
-        embed.add_field(name="Giá bán", value=f'`{format_currency(round(item_data["price"] * 0.9))}` {coin}', inline=True)
-        await ctx.reply(embed=embed)
-    else:
+    item_data = shop_data.get(item_id)
+    if not item_data:
         await ctx.reply("Không tìm thấy sản phẩm với ID này.")
+        return
+    embed = discord.Embed(
+        title=f"Thông tin sản phẩm:\n{item_data.get('name','(Không tên)')}",
+        color=discord.Color.red()
+    )
+    embed.add_field(name="Mô tả", value=item_data.get('description','(không có)'), inline=False)
+    embed.add_field(name="Giá mua", value=f'`{format_currency(item_data.get("price",0))}` {coin}', inline=True)
+    embed.add_field(name="Giá bán", value=f'`{format_currency(round(item_data.get("price",0) * 0.9))}` {coin}', inline=True)
+    await ctx.reply(embed=embed)
 
 @bot.command(name="setb")
 async def set_background(ctx, member: discord.Member, background_url: str):
     if ctx.author.id != 1196335145964285984:
         await ctx.reply("Chỉ người dùng được phép mới có thể sử dụng lệnh này.")
         return
-
-    if not background_url.startswith("http"):
-        await ctx.reply("URL không hợp lệ. Vui lòng cung cấp một URL hợp lệ.")
+    if not background_url.startswith(("http://", "https://")):
+        await ctx.reply("URL không hợp lệ. Vui lòng cung cấp URL hợp lệ.")
         return
 
     user_id = str(member.id)
     user_backgrounds[user_id] = background_url
-
-    # Lưu lại dữ liệu vào file
-    with open("backgrounds.json", "w") as f:
-        json.dump(user_backgrounds, f, indent=4)
-
+    with open("backgrounds.json", "w", encoding="utf-8") as f:
+        json.dump(user_backgrounds, f, ensure_ascii=False, indent=4)
     await ctx.reply(f"Đã thay đổi nền của {member.display_name} thành: {background_url}")
 
 @bot.command(name="cccd", help='`$cccd`\n> mở căn cước công dân')
 async def cccd(ctx, member: discord.Member = None, size: int = 128):
-    if not await check_permission(ctx):
-        return
-
-    if member is None:
-        member = ctx.author
-
+    if not await check_permission(ctx): return
+    member = member or ctx.author
     user_id = str(member.id)
-    background_url = user_backgrounds.get(user_id, "https://hinhanhonline.com/Hinhanh/images07/AnhAL/hinh-nen-may-tinh-dep-doc-dao-nhat-19.jpg") if isinstance(user_backgrounds, dict) else "https://hinhanhonline.com/Hinhanh/images07/AnhAL/hinh-nen-may-tinh-dep-doc-dao-nhat-19.jpg"
 
-    if not await check_user_data(ctx, user_id):
-        return
+    if not await check_user_data(ctx, user_id): return
 
-    # Dùng MongoDB để lấy thông tin người dùng
+    background_url = user_backgrounds.get(
+        user_id,
+        "https://hinhanhonline.com/Hinhanh/images07/AnhAL/hinh-nen-may-tinh-dep-doc-dao-nhat-19.jpg"
+    )
+
     data = get_user(user_id)
-    smart = data.get("smart", 0)
+    smart = int(data.get("smart", 0))
     user_name = member.name
     avatar_url = member.display_avatar.with_size(size).url
 
     level, progress_percentage, next_level_needed_smart = calculate_level_and_progress(smart)
 
-    # Cập nhật vai trò
+    # Cập nhật vai trò theo tu_vi
+    async def update_roles(ctx, member, level):
+        for role_info in tu_vi.values():
+            role = ctx.guild.get_role(role_info.get("id"))
+            if role and role in member.roles:
+                await member.remove_roles(role)
+
+        role_name = "None"
+        role_id = None
+        for name, info in sorted(tu_vi.items(), key=lambda x: x[1]["level_min"], reverse=True):
+            if level >= info["level_min"]:
+                role_name = name
+                role_id = info["id"]
+                break
+
+        if role_id:
+            role = ctx.guild.get_role(role_id)
+            if role and role not in member.roles:
+                await member.add_roles(role)
+        return role_name
+
     role_name = await update_roles(ctx, member, level)
 
-    # Tải hình ảnh avatar và background bất đồng bộ
+    # tải ảnh
     avatar_image = await fetch_image(avatar_url)
     if avatar_image is None:
         await ctx.reply("Lỗi tải ảnh avatar. Vui lòng thử lại sau.")
@@ -489,17 +450,19 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
         return
     galaxy_background = galaxy_background.resize((400, 225))
 
-    server_image = Image.open("1.png")  # Mở ảnh từ đường dẫn tĩnh
-    if server_image is None:
-        await ctx.reply("Lỗi tải ảnh server.")
+    try:
+        server_image = Image.open("1.png").convert("RGBA")
+    except Exception:
+        await ctx.reply("Lỗi tải ảnh server (1.png).")
         return
     server_image = server_image.resize((80, 80))
 
-    # Ghép ảnh
-    galaxy_background.paste(server_image, (10, 10), mask=server_image)
-    galaxy_background.paste(avatar_image, (20, 85), mask=avatar_image)
+    # ghép
+    canvas = galaxy_background.copy()
+    canvas.paste(server_image, (10, 10), mask=server_image)
+    canvas.paste(avatar_image, (20, 85), mask=avatar_image)
 
-    # Cài đặt phông chữ
+    # font
     font_path = "Roboto-Black.ttf"
     try:
         font_small = ImageFont.truetype(font_path, 12)
@@ -507,23 +470,31 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
     except IOError:
         font_large = font_small = ImageFont.load_default()
 
-    draw = ImageDraw.Draw(galaxy_background)
-    draw_text_with_outline(draw, f"Tên: {user_name}\nID: {user_id}\nHọc vấn: {format_currency(smart)}\nlv: {format_currency(level)}\nTrình độ: {role_name}", (160, 95), font_large)
-    draw_text_with_outline(draw, f"CỘNG HÒA XÃ HỘI CHỦ NGHĨA MEME\n          Độc lập - Tự do - Hạnh phúc\n\n                 CĂN CƯỚC CƯ DÂN", (100, 20), font_large)
-    
-    # Vẽ thanh tiến độ
-    filled_length = progress_percentage * 2
-    bar_position = (160, 185, 160 + 200, 205)
-    draw.rectangle(bar_position, outline="black", width=3)
-    draw.rectangle((163, 188, 157 + filled_length, 202), fill="#1E90FF")
+    draw = ImageDraw.Draw(canvas)
+    draw_text_with_outline(
+        draw,
+        f"Tên: {user_name}\nID: {user_id}\nHọc vấn: {format_currency(smart)}\nlv: {format_currency(level)}\nTrình độ: {role_name}",
+        (160, 95),
+        font_large
+    )
+    draw_text_with_outline(
+        draw,
+        "CỘNG HÒA XÃ HỘI CHỦ NGHĨA MEME\n          Độc lập - Tự do - Hạnh phúc\n\n                 CĂN CƯỚC CƯ DÂN",
+        (100, 20),
+        font_large
+    )
 
+    # progress bar
+    filled_length = int(progress_percentage * 2)  # 0..200
+    bar_position = (160, 185, 360, 205)
+    draw.rectangle(bar_position, outline="black", width=3)
+    draw.rectangle((163, 188, 163 + max(0, filled_length - 6), 202), fill="#1E90FF")
     draw_text_with_outline(draw, f"{smart}/{next_level_needed_smart}", (165, 188), font_small)
 
-    # Lưu và gửi ảnh
-    with io.BytesIO() as image_binary:
-        galaxy_background.save(image_binary, "PNG")
-        image_binary.seek(0)
-        await ctx.reply(file=discord.File(fp=image_binary, filename="cccd.png"))
+    with io.BytesIO() as bio:
+        canvas.save(bio, "PNG")
+        bio.seek(0)
+        await ctx.reply(file=discord.File(fp=bio, filename="cccd.png"))
 
 @bot.command(name="bag", help='`$bag`\n> mở túi')
 async def bag(ctx, member: discord.Member = None):
@@ -605,7 +576,7 @@ async def ou(ctx, bet: str, choice: str):
         data['points'] += bet
     else:
         data['points'] -= bet
-        update_jackpot(bet)  # Cập nhật jackpot nếu thua
+        dh_update_jackpot(bet)  # Cập nhật jackpot nếu thua
 
     update_user(user_id, data)
 
@@ -1290,6 +1261,6 @@ async def clear_messages(ctx, amount: int):
 
     await ctx.channel.purge(limit=amount)
 
-keep_alive()  # Chạy web server
-import os
-bot.run(os.getenv("DISCORD_TOKEN"))
+# ==== RUN ====
+keep_alive()
+bot.run(DISCORD_TOKEN)
