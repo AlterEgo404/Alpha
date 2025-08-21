@@ -12,6 +12,9 @@ import math
 import aiohttp
 from keep_alive import keep_alive
 
+mongo_uri = "mongodb+srv://botuser:mypassword123@cluster0.7f1imlk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+client = MongoClient(mongo_uri)
+
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$', intents=intents, help_command=None)
 

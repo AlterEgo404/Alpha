@@ -1,4 +1,9 @@
+<<<<<<< HEAD
+mongo_uri = "mongodb+srv://botuser:mypassword123@cluster0.7f1imlk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+client = MongoClient(mongo_uri)
+=======
 from pymongo import MongoClient
+>>>>>>> 8076de129ca7a8bc156c5569f2036d5487e0ed22
 
 mongo_uri = "mongodb+srv://botuser:mypassword123@cluster0.7f1imlk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = MongoClient(mongo_uri)
