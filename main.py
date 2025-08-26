@@ -6,6 +6,7 @@ import random
 import datetime
 import asyncio
 import traceback
+from typing import List, Optional, Dict
 
 import discord
 from discord.ext import commands
@@ -77,6 +78,97 @@ save_tu_vi = lambda data: save_json('tu_vi.json', data)
 gacha_data = load_json('gacha_data.json')
 save_gacha_data = lambda data: save_json('gacha_data.json', data)
 
+# ---- Define for Text Fight ----
+# Chỉ số cơ bản
+DEFAULT_HP = 100
+DEFAULT_ARMOR = 20      # giáp điểm (trừ thẳng damage)
+BASE_DMG_MIN = 10
+BASE_DMG_MAX = 25
+EQUIP_SLOTS = 3         # 3 ô trang bị
+
+def _find_item_key(id_or_name: str) -> Optional[str]:
+    """Tìm key trong shop_data theo id (key) hoặc theo tên (không phân biệt hoa/thường)."""
+    if id_or_name in shop_data:
+        return id_or_name
+    lower = str(id_or_name).lower()
+    for key, item in shop_data.items():
+        if str(item.get("name", "")).lower() == lower:
+            return key
+    return None
+
+def _get_equips(user_id: str) -> List[Optional[str]]:
+    doc = users_col.find_one({"_id": user_id}, {"fight_equips": 1}) or {}
+    equips = doc.get("fight_equips")
+    if not isinstance(equips, list):
+        equips = [None] * EQUIP_SLOTS
+    if len(equips) < EQUIP_SLOTS:
+        equips = equips + [None] * (EQUIP_SLOTS - len(equips))
+    return equips[:EQUIP_SLOTS]
+
+def _set_equips(user_id: str, equips: List[Optional[str]]):
+    if not isinstance(equips, list) or len(equips) != EQUIP_SLOTS:
+        raise ValueError("equips phải là list có đúng 3 phần tử")
+    users_col.update_one({"_id": user_id}, {"$set": {"fight_equips": equips}}, upsert=True)
+
+def _get_curr_hp(user_id: str) -> int:
+    doc = users_col.find_one({"_id": user_id}, {"fight_hp": 1}) or {}
+    return int(doc.get("fight_hp", DEFAULT_HP))
+
+def _set_curr_hp(user_id: str, hp: int):
+    users_col.update_one({"_id": user_id}, {"$set": {"fight_hp": int(hp)}}, upsert=True)
+
+def _user_inventory_count(user_id: str, item_name: str) -> int:
+    """Kho đồ lưu theo TÊN item."""
+    doc = users_col.find_one({"_id": user_id}, {"items": 1}) or {}
+    items = doc.get("items") or {}
+    return int(items.get(item_name, 0))
+
+def _gear_bonuses(item_key: str) -> Dict[str, int]:
+    item = shop_data.get(item_key) or {}
+    bonuses = item.get("bonuses") or {}
+    return {
+        "hp": int(bonuses.get("hp", 0)),
+        "armor": int(bonuses.get("armor", 0)),
+        "dmg_min": int(bonuses.get("dmg_min", 0)),
+        "dmg_max": int(bonuses.get("dmg_max", 0)),
+    }
+
+def _aggregate_bonuses(equips: List[Optional[str]]) -> Dict[str, int]:
+    total = {"hp": 0, "armor": 0, "dmg_min": 0, "dmg_max": 0}
+    for key in equips:
+        if not key:
+            continue
+        b = _gear_bonuses(key)
+        for k in total:
+            total[k] += b[k]
+    return total
+
+def _effective_stats(user_id: str) -> Dict[str, int]:
+    """max_hp, armor, dmg range, curr_hp (đã cộng trang bị)."""
+    equips = _get_equips(user_id)
+    agg = _aggregate_bonuses(equips)
+    max_hp = DEFAULT_HP + agg["hp"]
+    armor = DEFAULT_ARMOR + agg["armor"]
+    dmg_min = BASE_DMG_MIN + agg["dmg_min"]
+    dmg_max = BASE_DMG_MAX + agg["dmg_max"]
+    if dmg_min > dmg_max:
+        dmg_min = dmg_max
+    curr_hp = _get_curr_hp(user_id)
+    return {"max_hp": max_hp, "armor": armor, "dmg_min": dmg_min, "dmg_max": dmg_max, "curr_hp": curr_hp}
+
+def _clamp_hp_to_max(user_id: str):
+    stats = _effective_stats(user_id)
+    if stats["curr_hp"] > stats["max_hp"]:
+        _set_curr_hp(user_id, stats["max_hp"])
+
+def _item_display(item_key: Optional[str]) -> str:
+    if not item_key:
+        return "— trống —"
+    data = shop_data.get(item_key, {})
+    icon = data.get("icon", "")
+    name = data.get("name", item_key)
+    return f"{icon} {name}".strip()
+
 try:
     with open("backgrounds.json", "r", encoding="utf-8") as f:
         user_backgrounds = json.load(f)
@@ -122,7 +214,7 @@ def calculate_level_and_progress(smart):
 # ---- Permissions & user checks ----
 async def check_permission(ctx):
     if ctx.author.id != 1196335145964285984 and ctx.channel.id != ALLOWED_CHANNEL_ID:
-        await ctx.reply(f"Lệnh này chỉ có thể được sử dụng trong <# {ALLOWED_CHANNEL_ID} >")
+        await ctx.reply(f"Lệnh này chỉ có thể được sử dụng trong <#{ALLOWED_CHANNEL_ID} >")
         return False
     return True
 
@@ -394,7 +486,7 @@ async def set_background(ctx, member: discord.Member, background_url: str):
         json.dump(user_backgrounds, f, ensure_ascii=False, indent=4)
     await ctx.reply(f"Đã thay đổi nền của {member.display_name} thành: {background_url}")
 
-@bot.command(name="cccd", help='`$cccd`\n> mở căn cước công dân')
+@bot.command(name="cccd", help='`$cccd`\n> mở căn cước công dân (kèm trang bị)')
 async def cccd(ctx, member: discord.Member = None, size: int = 128):
     if not await check_permission(ctx): return
     member = member or ctx.author
@@ -437,7 +529,26 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
 
     role_name = await update_roles(ctx, member, level)
 
-    # tải ảnh
+    # ======= TRANG BỊ & CHIẾN ĐẤU =======
+    try:
+        equips = _get_equips(user_id)
+        combat = _effective_stats(user_id)
+    except NameError:
+        # fallback nếu thiếu block fight/equip
+        equips = [None, None, None]
+        combat = {"max_hp": 100, "armor": 20, "dmg_min": 10, "dmg_max": 25, "curr_hp": 100}
+
+    # Hiển thị ô trang bị (icon hoặc tên; trống dùng "—")
+    equip_icons = []
+    for key in equips:
+        if key and key in shop_data:
+            icon = shop_data[key].get("icon", "")
+            equip_icons.append(icon if icon else shop_data[key].get("name", key))
+        else:
+            equip_icons.append("—")
+    gear_line = f"Trang bị: {equip_icons[0]} | {equip_icons[1]} | {equip_icons[2]}"
+
+    # ======= TẢI ẢNH =======
     avatar_image = await fetch_image(avatar_url)
     if avatar_image is None:
         await ctx.reply("Lỗi tải ảnh avatar. Vui lòng thử lại sau.")
@@ -457,12 +568,12 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
         return
     server_image = server_image.resize((80, 80))
 
-    # ghép
+    # ======= GHÉP ẢNH =======
     canvas = galaxy_background.copy()
     canvas.paste(server_image, (10, 10), mask=server_image)
     canvas.paste(avatar_image, (20, 85), mask=avatar_image)
 
-    # font
+    # Font
     font_path = "Roboto-Black.ttf"
     try:
         font_small = ImageFont.truetype(font_path, 12)
@@ -471,12 +582,8 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
         font_large = font_small = ImageFont.load_default()
 
     draw = ImageDraw.Draw(canvas)
-    draw_text_with_outline(
-        draw,
-        f"Tên: {user_name}\nID: {user_id}\nHọc vấn: {format_currency(smart)}\nlv: {format_currency(level)}\nTrình độ: {role_name}",
-        (160, 95),
-        font_large
-    )
+
+    # Header
     draw_text_with_outline(
         draw,
         "CỘNG HÒA XÃ HỘI CHỦ NGHĨA MEME\n          Độc lập - Tự do - Hạnh phúc\n\n                 CĂN CƯỚC CƯ DÂN",
@@ -484,13 +591,34 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
         font_large
     )
 
-    # progress bar
+    # Thông tin cơ bản
+    draw_text_with_outline(
+        draw,
+        f"Tên: {user_name}\nID: {user_id}\nHọc vấn: {format_currency(smart)}\n"
+        f"lv: {format_currency(level)}\nTrình độ: {role_name}",
+        (160, 85),
+        font_large
+    )
+
+    # Chỉ số chiến đấu gọn 1 dòng
+    combat_line = (
+        f"HP: {combat['curr_hp']}/{combat['max_hp']}  |  "
+        f"Giáp: {combat['armor']}  |  "
+        f"DMG: {combat['dmg_min']}-{combat['dmg_max']}"
+    )
+    draw_text_with_outline(draw, combat_line, (160, 145), font_large)
+
+    # Trang bị (3 ô)
+    draw_text_with_outline(draw, gear_line, (160, 160), font_large)
+
+    # Thanh tiến độ học vấn
     filled_length = int(progress_percentage * 2)  # 0..200
     bar_position = (160, 185, 360, 205)
     draw.rectangle(bar_position, outline="black", width=3)
     draw.rectangle((163, 188, 163 + max(0, filled_length - 6), 202), fill="#1E90FF")
     draw_text_with_outline(draw, f"{smart}/{next_level_needed_smart}", (165, 188), font_small)
 
+    # Xuất ảnh
     with io.BytesIO() as bio:
         canvas.save(bio, "PNG")
         bio.seek(0)
@@ -1252,6 +1380,123 @@ async def study(ctx):
     )
 
     await ctx.reply("Bạn vừa học xong ra chơi thôi!")
+
+# ===== Commands for Text Fight =====
+@bot.command(name="attack", help="`$attack @user` → tấn công người chơi")
+async def attack(ctx: commands.Context, target: discord.Member):
+    if not await check_permission(ctx): return
+    attacker_id = str(ctx.author.id)
+    target_id = str(target.id)
+    if target.bot:
+        await ctx.reply("❌ Không thể tấn công bot."); return
+    if target_id == attacker_id:
+        await ctx.reply("❌ Không thể tự tấn công chính mình."); return
+
+    atk = _effective_stats(attacker_id)
+    tgt = _effective_stats(target_id)
+    raw = random.randint(atk["dmg_min"], atk["dmg_max"])
+    dmg = max(1, raw - tgt["armor"])   # giáp là điểm, trừ thẳng
+    new_hp = max(0, tgt["curr_hp"] - dmg)
+    _set_curr_hp(target_id, new_hp)
+
+    msg = (
+        f"💥 **{ctx.author.name}** tấn công **{target.name}** gây `{dmg}` sát thương "
+        f"(raw {raw} - giáp {tgt['armor']}).\n"
+        f"❤️ HP của {target.name}: `{new_hp}/{tgt['max_hp']}`"
+    )
+    if new_hp <= 0:
+        # chết → reset về MAX HP (cộng trang bị)
+        tgt_after = _effective_stats(target_id)
+        _set_curr_hp(target_id, tgt_after["max_hp"])
+        msg += f"\n☠️ {target.name} đã gục ngã! HP reset về {tgt_after['max_hp']}."
+    await ctx.send(msg)
+
+@bot.command(name="gear", help="`$gear [@user]` → xem 3 ô trang bị & chỉ số")
+async def gear(ctx: commands.Context, member: Optional[discord.Member] = None):
+    if not await check_permission(ctx): return
+    member = member or ctx.author
+    user_id = str(member.id)
+    equips = _get_equips(user_id)
+    stats = _effective_stats(user_id)
+    lines = [
+        f"**Ô 1:** {_item_display(equips[0])}",
+        f"**Ô 2:** {_item_display(equips[1])}",
+        f"**Ô 3:** {_item_display(equips[2])}",
+        "",
+        f"❤️ HP: `{stats['curr_hp']}/{stats['max_hp']}`",
+        f"🛡️ Giáp (điểm): `{stats['armor']}`",
+        f"🗡️ Damage: `{stats['dmg_min']}–{stats['dmg_max']}`",
+    ]
+    await ctx.reply("\n".join(lines))
+
+@bot.command(name="equip", help="`$equip <item_id_hoặc_tên> [ô]` → đeo vào ô trống đầu, hoặc ô 1–3 nếu chỉ định")
+async def equip(ctx: commands.Context, item_id_or_name: str, slot: Optional[int] = None):
+    if not await check_permission(ctx): return
+    user_id = str(ctx.author.id)
+
+    key = _find_item_key(item_id_or_name)
+    if not key:
+        await ctx.reply("❌ Không tìm thấy món đó trong cửa hàng."); return
+    data = shop_data.get(key) or {}
+    if not data.get("gear", False):
+        await ctx.reply("❌ Món này không phải trang bị."); return
+
+    name = data.get("name", key)
+    owned = _user_inventory_count(user_id, name)
+    if owned <= 0:
+        await ctx.reply(f"❌ Bạn không sở hữu **{name}**."); return
+
+    equips = _get_equips(user_id)
+    equipped_cnt = sum(1 for k in equips if k == key)
+    if equipped_cnt >= owned:
+        await ctx.reply(f"❌ Bạn chỉ sở hữu `{owned}` **{name}** và đã đeo hết."); return
+
+    if slot is None:
+        # tìm ô trống đầu tiên
+        try:
+            idx = equips.index(None)
+        except ValueError:
+            await ctx.reply("❌ Cả 3 ô đã đầy. Chỉ định ô 1–3 để thay thế, hoặc dùng `$unequip <ô>` trước.")
+            return
+    else:
+        if slot not in (1, 2, 3):
+            await ctx.reply("❌ Ô hợp lệ: 1, 2, hoặc 3."); return
+        idx = slot - 1
+
+    equips[idx] = key
+    _set_equips(user_id, equips)
+    _clamp_hp_to_max(user_id)
+    await ctx.reply(f"✅ Đã trang bị **{name}** vào ô `{idx + 1}`.")
+
+@bot.command(name="unequip", help="`$unequip <ô>` → tháo trang bị ở ô 1–3")
+async def unequip(ctx: commands.Context, slot: int):
+    if not await check_permission(ctx): return
+    if slot not in (1, 2, 3):
+        await ctx.reply("❌ Ô hợp lệ: 1, 2, hoặc 3."); return
+    user_id = str(ctx.author.id)
+    equips = _get_equips(user_id)
+    idx = slot - 1
+    if not equips[idx]:
+        await ctx.reply("❌ Ô này đang trống."); return
+
+    removed_key = equips[idx]
+    equips[idx] = None
+    _set_equips(user_id, equips)
+    _clamp_hp_to_max(user_id)
+
+    name = shop_data.get(removed_key, {}).get("name", removed_key)
+    await ctx.reply(f"✅ Đã tháo **{name}** khỏi ô `{slot}`.")
+
+@bot.command(name="fstats", help="`$fstats [@user]` → xem HP & giáp hiệu dụng")
+async def fstats(ctx: commands.Context, member: Optional[discord.Member] = None):
+    if not await check_permission(ctx): return
+    member = member or ctx.author
+    user_id = str(member.id)
+    stats = _effective_stats(user_id)
+    await ctx.reply(
+        f"📊 **{member.name}** — HP: `{stats['curr_hp']}/{stats['max_hp']}`, "
+        f"Giáp: `{stats['armor']}`, DMG: `{stats['dmg_min']}–{stats['dmg_max']}`."
+    )
 
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):
