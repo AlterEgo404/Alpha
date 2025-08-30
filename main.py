@@ -43,7 +43,7 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='$', intents=intents, help_command=None)
 
 # ---- Constants ----
-ALLOWED_CHANNEL_ID = 1347480186198949920
+ALLOWED_CHANNEL_ID = 1411177026588643369
 coin = "<:meme_coin:1362951683814199487>"
 
 dice_emojis = {
@@ -1381,19 +1381,38 @@ async def study(ctx):
 # ===== Commands for Text Fight =====
 @bot.command(name="attack", help="`$attack @user` → tấn công người chơi")
 async def attack(ctx: commands.Context, target: discord.Member):
-    if not await check_permission(ctx): return
+    if not await check_permission(ctx):
+        return
+
     attacker_id = str(ctx.author.id)
     target_id = str(target.id)
-    if target.bot:
-        await ctx.reply("❌ Không thể tấn công bot."); return
-    if target_id == attacker_id:
-        await ctx.reply("❌ Không thể tự tấn công chính mình."); return
 
+    # 1) Kiểm tra bot/tự đánh
+    if target.bot:
+        await ctx.reply("❌ Không thể tấn công bot.")
+        return
+    if target_id == attacker_id:
+        await ctx.reply("❌ Không thể tự tấn công chính mình.")
+        return
+
+    # 2) Chỉ tấn công người có tài khoản (và attacker cũng phải có)
+    attacker_doc = get_user(attacker_id)
+    if not attacker_doc:
+        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
+        return
+    target_doc = get_user(target_id)
+    if not target_doc:
+        await ctx.reply("❌ Người chơi này chưa có tài khoản. Bảo họ dùng `$start` trước nhé!")
+        return
+
+    # 3) Tính sát thương (giáp là điểm, trừ thẳng)
     atk = _effective_stats(attacker_id)
     tgt = _effective_stats(target_id)
+
     raw = random.randint(atk["dmg_min"], atk["dmg_max"])
-    dmg = max(1, raw - tgt["armor"])   # giáp là điểm, trừ thẳng
+    dmg = max(1, raw - tgt["armor"])
     new_hp = max(0, tgt["curr_hp"] - dmg)
+
     _set_curr_hp(target_id, new_hp)
 
     msg = (
@@ -1402,19 +1421,32 @@ async def attack(ctx: commands.Context, target: discord.Member):
         f"❤️ HP của {target.name}: `{new_hp}/{tgt['max_hp']}`"
     )
     if new_hp <= 0:
-        # chết → reset về MAX HP (cộng trang bị)
+        # chết → reset về MAX HP (cộng trang bị hiện có)
         tgt_after = _effective_stats(target_id)
         _set_curr_hp(target_id, tgt_after["max_hp"])
         msg += f"\n☠️ {target.name} đã gục ngã! HP reset về {tgt_after['max_hp']}."
     await ctx.send(msg)
 
+
 @bot.command(name="gear", help="`$gear [@user]` → xem 3 ô trang bị & chỉ số")
 async def gear(ctx: commands.Context, member: Optional[discord.Member] = None):
-    if not await check_permission(ctx): return
+    if not await check_permission(ctx):
+        return
+
     member = member or ctx.author
     user_id = str(member.id)
+
+    # Yêu cầu có tài khoản (cả khi xem người khác)
+    if not get_user(user_id):
+        if member.id == ctx.author.id:
+            await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
+        else:
+            await ctx.reply("Người chơi này chưa có tài khoản.")
+        return
+
     equips = _get_equips(user_id)
     stats = _effective_stats(user_id)
+
     lines = [
         f"**Ô 1:** {_item_display(equips[0])}",
         f"**Ô 2:** {_item_display(equips[1])}",
@@ -1426,27 +1458,40 @@ async def gear(ctx: commands.Context, member: Optional[discord.Member] = None):
     ]
     await ctx.reply("\n".join(lines))
 
+
 @bot.command(name="equip", help="`$equip <item_id_hoặc_tên> [ô]` → đeo vào ô trống đầu, hoặc ô 1–3 nếu chỉ định")
 async def equip(ctx: commands.Context, item_id_or_name: str, slot: Optional[int] = None):
-    if not await check_permission(ctx): return
+    if not await check_permission(ctx):
+        return
+
     user_id = str(ctx.author.id)
+
+    # Cần có tài khoản
+    if not get_user(user_id):
+        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
+        return
 
     key = _find_item_key(item_id_or_name)
     if not key:
-        await ctx.reply("❌ Không tìm thấy món đó trong cửa hàng."); return
+        await ctx.reply("❌ Không tìm thấy món đó trong cửa hàng.")
+        return
+
     data = shop_data.get(key) or {}
     if not data.get("gear", False):
-        await ctx.reply("❌ Món này không phải trang bị."); return
+        await ctx.reply("❌ Món này không phải trang bị.")
+        return
 
     name = data.get("name", key)
     owned = _user_inventory_count(user_id, name)
     if owned <= 0:
-        await ctx.reply(f"❌ Bạn không sở hữu **{name}**."); return
+        await ctx.reply(f"❌ Bạn không sở hữu **{name}**.")
+        return
 
     equips = _get_equips(user_id)
     equipped_cnt = sum(1 for k in equips if k == key)
     if equipped_cnt >= owned:
-        await ctx.reply(f"❌ Bạn chỉ sở hữu `{owned}` **{name}** và đã đeo hết."); return
+        await ctx.reply(f"❌ Bạn chỉ sở hữu `{owned}` **{name}** và đã đeo hết.")
+        return
 
     if slot is None:
         # tìm ô trống đầu tiên
@@ -1457,24 +1502,38 @@ async def equip(ctx: commands.Context, item_id_or_name: str, slot: Optional[int]
             return
     else:
         if slot not in (1, 2, 3):
-            await ctx.reply("❌ Ô hợp lệ: 1, 2, hoặc 3."); return
+            await ctx.reply("❌ Ô hợp lệ: 1, 2, hoặc 3.")
+            return
         idx = slot - 1
 
     equips[idx] = key
     _set_equips(user_id, equips)
     _clamp_hp_to_max(user_id)
+
     await ctx.reply(f"✅ Đã trang bị **{name}** vào ô `{idx + 1}`.")
+
 
 @bot.command(name="unequip", help="`$unequip <ô>` → tháo trang bị ở ô 1–3")
 async def unequip(ctx: commands.Context, slot: int):
-    if not await check_permission(ctx): return
-    if slot not in (1, 2, 3):
-        await ctx.reply("❌ Ô hợp lệ: 1, 2, hoặc 3."); return
+    if not await check_permission(ctx):
+        return
+
     user_id = str(ctx.author.id)
+
+    # Cần có tài khoản
+    if not get_user(user_id):
+        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
+        return
+
+    if slot not in (1, 2, 3):
+        await ctx.reply("❌ Ô hợp lệ: 1, 2, hoặc 3.")
+        return
+
     equips = _get_equips(user_id)
     idx = slot - 1
     if not equips[idx]:
-        await ctx.reply("❌ Ô này đang trống."); return
+        await ctx.reply("❌ Ô này đang trống.")
+        return
 
     removed_key = equips[idx]
     equips[idx] = None
@@ -1484,17 +1543,29 @@ async def unequip(ctx: commands.Context, slot: int):
     name = shop_data.get(removed_key, {}).get("name", removed_key)
     await ctx.reply(f"✅ Đã tháo **{name}** khỏi ô `{slot}`.")
 
+
 @bot.command(name="fstats", help="`$fstats [@user]` → xem HP & giáp hiệu dụng")
 async def fstats(ctx: commands.Context, member: Optional[discord.Member] = None):
-    if not await check_permission(ctx): return
+    if not await check_permission(ctx):
+        return
+
     member = member or ctx.author
     user_id = str(member.id)
+
+    # Yêu cầu có tài khoản (cả khi xem người khác)
+    if not get_user(user_id):
+        if member.id == ctx.author.id:
+            await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
+        else:
+            await ctx.reply("Người chơi này chưa có tài khoản.")
+        return
+
     stats = _effective_stats(user_id)
     await ctx.reply(
         f"📊 **{member.name}** — HP: `{stats['curr_hp']}/{stats['max_hp']}`, "
         f"Giáp: `{stats['armor']}`, DMG: `{stats['dmg_min']}–{stats['dmg_max']}`."
     )
-
+    
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):
     if not ctx.author.guild_permissions.manage_messages:
