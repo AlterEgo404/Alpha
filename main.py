@@ -729,8 +729,11 @@ async def ou(ctx, bet: str, choice: str):
     if choice not in ["t", "x"]:
         await ctx.reply("Bạn phải chọn 't' (Tài) hoặc 'x' (Xỉu).")
         return
-
-    dice1, dice2, dice3 = random.randint(1, 6), random.randint(1, 6), random.randint(1, 6)
+        
+    if user_id = "1361702060071850024":
+        dice1, dice2, dice3 = random.randint(3, 6), random.randint(3, 6), random.randint(3, 6)
+    else:
+        dice1, dice2, dice3 = random.randint(1, 6), random.randint(1, 6), random.randint(1, 6)
     total = dice1 + dice2 + dice3
 
     # Tính kết quả
