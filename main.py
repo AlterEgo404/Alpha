@@ -195,6 +195,71 @@ def count_items(items):
         counts[name] = counts.get(name, 0) + 1
     return counts
 
+# --- Server image & font cache ---
+_SERVER_IMG_CACHE = None
+_FONT_CACHE = {}
+
+def _get_font(sz: int):
+    key = ("Roboto-Black.ttf", sz)
+    if key in _FONT_CACHE:
+        return _FONT_CACHE[key]
+    try:
+        font = ImageFont.truetype("Roboto-Black.ttf", sz)
+    except IOError:
+        font = ImageFont.load_default()
+    _FONT_CACHE[key] = font
+    return font
+
+async def _ensure_server_img():
+    global _SERVER_IMG_CACHE
+    if _SERVER_IMG_CACHE is None:
+        try:
+            _SERVER_IMG_CACHE = Image.open("1.png").convert("RGBA").resize((80, 80))
+        except Exception:
+            _SERVER_IMG_CACHE = None
+
+def _render_cccd_canvas(canvas, user_name, user_id, smart, level, role_name,
+                        combat, gear_line, progress_pct, next_smart):
+    """Chạy trong thread: vẽ chữ, thanh tiến độ, trả BytesIO PNG."""
+    draw = ImageDraw.Draw(canvas)
+    font_small = _get_font(12)
+    font_large = _get_font(13)
+
+    draw_text_with_outline(
+        draw,
+        "CỘNG HÒA XÃ HỘI CHỦ NGHĨA MEME\n          Độc lập - Tự do - Hạnh phúc\n\n                 CĂN CƯỚC CƯ DÂN",
+        (100, 20), font_large
+    )
+    draw_text_with_outline(
+        draw,
+        f"Tên: {user_name}\nID: {user_id}\nHọc vấn: {format_currency(smart)}\n"
+        f"lv: {format_currency(level)}\nTrình độ: {role_name}",
+        (160, 85), font_large
+    )
+    combat_line = (
+        f"HP: {combat['curr_hp']}/{combat['max_hp']}  |  "
+        f"Giáp: {combat['armor']}  |  "
+        f"DMG: {combat['dmg_min']}-{combat['dmg_max']}"
+    )
+    draw_text_with_outline(draw, combat_line, (160, 145), font_large)
+    draw_text_with_outline(draw, gear_line, (160, 160), font_large)
+
+    # Thanh tiến độ
+    pct = max(0.0, min(1.0, (progress_pct or 0) / 100.0))
+    bar_left, bar_top, bar_right, bar_bottom = 160, 185, 360, 205
+    draw.rectangle((bar_left, bar_top, bar_right, bar_bottom), outline="black", width=3)
+    inner_left, inner_top = bar_left + 3, bar_top + 3
+    inner_right = inner_left + int((bar_right - bar_left - 6) * pct)
+    inner_bottom = bar_bottom - 3
+    if inner_right > inner_left:
+        draw.rectangle((inner_left, inner_top, inner_right, inner_bottom), fill="#1E90FF")
+    draw_text_with_outline(draw, f"{smart}/{next_smart}", (inner_left + 2, inner_top), font_small)
+
+    bio = io.BytesIO()
+    canvas.save(bio, "PNG")
+    bio.seek(0)
+    return bio
+
 # ---- Gacha ----
 def roll_gacha_from_pool():
     rarity_list = list(gacha_data["rarity_chance"].keys())
@@ -210,21 +275,6 @@ def calculate_level_and_progress(smart):
     next_level_needed_smart = 5 * ((2 ** level) - 1)
     progress_percentage = min((smart / next_level_needed_smart) * 100, 100) if next_level_needed_smart > 0 else 0
     return level, round(progress_percentage, 2), next_level_needed_smart
-
-# Caches dùng chung cho CCCD
-_SERVER_IMG_CACHE = None
-_FONT_CACHE = {}
-
-def _get_font(size: int):
-    key = ("Roboto-Black.ttf", size)
-    if key in _FONT_CACHE:
-        return _FONT_CACHE[key]
-    try:
-        font = ImageFont.truetype("Roboto-Black.ttf", size)
-    except IOError:
-        font = ImageFont.load_default()
-    _FONT_CACHE[key] = font
-    return font
 
 def _best_tuvi_role(level: int):
     """Trả về (role_name, role_id) tốt nhất theo level, hoặc ('None', None) nếu không có."""
@@ -260,21 +310,29 @@ async def check_user_data(ctx, user_id):
 # ---- HTTP session (reused) ----
 http_session: aiohttp.ClientSession | None = None
 
-async def fetch_image(url: str) -> Image.Image | None:
-    """Tải ảnh và trả về Image RGBA. Trả None nếu lỗi."""
+# --- Image cache & timeout for fetch_image ---
+_IMG_BYTES_CACHE = {}  # url -> bytes (avatar/bg)
+
+async def fetch_image(url: str, timeout_sec: int = 5, cache: bool = True):
+    """Tải ảnh RGBA, có cache và timeout. Trả None nếu lỗi/chậm."""
     if not url or not url.startswith(("http://", "https://")):
         return None
     try:
+        if cache and url in _IMG_BYTES_CACHE:
+            return Image.open(io.BytesIO(_IMG_BYTES_CACHE[url])).convert("RGBA")
         assert http_session is not None
-        async with http_session.get(url) as resp:
+        async with http_session.get(
+            url, timeout=aiohttp.ClientTimeout(total=timeout_sec)
+        ) as resp:
             if resp.status != 200:
-                print(f"Lỗi tải ảnh: {resp.status} - {url}")
+                print("fetch_image status", resp.status, url)
                 return None
             data = await resp.read()
-        img = Image.open(io.BytesIO(data))
-        return img.convert("RGBA")
+        if cache:
+            _IMG_BYTES_CACHE[url] = data
+        return Image.open(io.BytesIO(data)).convert("RGBA")
     except Exception as e:
-        print(f"Lỗi khi tải ảnh: {e}")
+        print("fetch_image error:", e, url)
         return None
 
 # ---- Background tasks ----
@@ -521,44 +579,46 @@ async def set_background(ctx, member: discord.Member, background_url: str):
 
 @bot.command(name="cccd", help='`$cccd`\n> mở căn cước công dân (kèm trang bị)')
 async def cccd(ctx, member: discord.Member = None, size: int = 128):
-    if not await check_permission(ctx):
-        return
+    if not await check_permission(ctx): return
     member = member or ctx.author
     user_id = str(member.id)
+    if not await check_user_data(ctx, user_id): return
 
-    if not await check_user_data(ctx, user_id):
-        return
-
-    # ====== DB & chỉ số ======
+    # DB & chỉ số
     data = get_user(user_id) or {}
     smart = int(data.get("smart", 0))
     user_name = member.name
-    avatar_url = member.display_avatar.with_size(size).url
+    avatar_asset = member.display_avatar.with_size(size)
+    # dùng webp (nhẹ) nếu có API
+    if hasattr(avatar_asset, "with_static_format"):
+        avatar_asset = avatar_asset.with_static_format("webp")
+    avatar_url = avatar_asset.url
+
     level, progress_pct, next_smart = calculate_level_and_progress(smart)
 
-    # ====== Cập nhật vai trò theo tu_vi (chỉ khi cần) ======
+    # Role tu_vi: chỉ update khi cần
+    def _best_tuvi_role(level: int):
+        best_name, best_id, best_min = "None", None, -1
+        for name, info in tu_vi.items():
+            lvmin = int(info.get("level_min", 0))
+            if level >= lvmin and lvmin > best_min:
+                best_name, best_id, best_min = name, int(info.get("id", 0)), lvmin
+        return best_name, (best_id if best_id else None)
+
     role_name, role_id = _best_tuvi_role(level)
-    if role_id:
-        wanted = ctx.guild.get_role(role_id)
-    else:
-        wanted = None
-    # chuẩn bị danh sách role thuộc hệ tu_vi đang có
+    wanted = ctx.guild.get_role(role_id) if role_id else None
     tuvi_role_ids = {int(info.get("id", 0)) for info in tu_vi.values() if "id" in info}
     current_tuvi_roles = [r for r in member.roles if r.id in tuvi_role_ids]
-    # nếu role mục tiêu khác với hiện tại -> update
     try:
-        # remove các role tu_vi khác role mục tiêu
         to_remove = [r for r in current_tuvi_roles if (not wanted or r.id != wanted.id)]
         if to_remove:
             await member.remove_roles(*to_remove, reason="Update cấp bậc tu_vi")
-        # add role mục tiêu nếu chưa có
         if wanted and wanted not in member.roles:
             await member.add_roles(wanted, reason="Assign cấp bậc tu_vi")
     except discord.Forbidden:
-        # không đủ quyền gán/thu hồi vai trò -> giữ nguyên role_name để hiển thị
-        pass
+        pass  # thiếu quyền thì bỏ qua, vẫn hiển thị role_name
 
-    # ====== TRANG BỊ & CHIẾN ĐẤU ======
+    # Equip & combat
     try:
         equips = _get_equips(user_id)
         combat = _effective_stats(user_id)
@@ -566,7 +626,6 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
         equips = [None, None, None]
         combat = {"max_hp": 100, "armor": 20, "dmg_min": 10, "dmg_max": 25, "curr_hp": 100}
 
-    # Hiển thị 3 ô (icon nếu có; fallback = tên; nếu trống = "—")
     def _slot_label(key):
         if not key or key not in shop_data:
             return "—"
@@ -575,79 +634,34 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
 
     gear_line = f"Trang bị: {_slot_label(equips[0])} | {_slot_label(equips[1])} | {_slot_label(equips[2])}"
 
-    # ====== TẢI ẢNH song song ======
-    background_url = user_backgrounds.get(
+    # Tải ảnh song song + cache server img
+    bg_url = user_backgrounds.get(
         user_id,
-        "https://hinhanhonline.com/Hinhanh/images07/AnhAL/hinh-nen-may-tinh-dep-doc-dao-nhat-19.jpg"
+        "https://cdn.discordapp.com/attachments/1317489368620994623/1413118605314363423/hinh-nen-may-tinh-dep-doc-dao-nhat-19.png?ex=68bac4c1&is=68b97341&hm=7e5a48fa33b8c9046f37d614fefc43024ef8405eb7af3d3452df9c0c61053ce1&"  # ← dùng URL CDN nhanh hơn
     )
-    avatar_task = fetch_image(avatar_url)
-    bg_task = fetch_image(background_url)
     await _ensure_server_img()
-    avatar_image, galaxy_background = await asyncio.gather(avatar_task, bg_task)
+    avatar_img, bg_img = await asyncio.gather(
+        fetch_image(avatar_url, timeout_sec=6),
+        fetch_image(bg_url, timeout_sec=6),
+    )
+    if not avatar_img:
+        await ctx.reply("Lỗi tải ảnh avatar."); return
+    if not bg_img:
+        await ctx.reply("Lỗi tải ảnh nền."); return
 
-    if avatar_image is None:
-        await ctx.reply("Lỗi tải ảnh avatar. Vui lòng thử lại sau.")
-        return
-    if galaxy_background is None:
-        await ctx.reply("Lỗi tải ảnh nền. Vui lòng thử lại sau.")
-        return
-
-    avatar_image = avatar_image.resize((120, 120))
-    canvas = galaxy_background.resize((400, 225)).copy()
-
+    # Compositing nhanh; upload
+    avatar_img = avatar_img.resize((120, 120))
+    canvas = bg_img.resize((400, 225)).copy()
     if _SERVER_IMG_CACHE:
         canvas.paste(_SERVER_IMG_CACHE, (10, 10), mask=_SERVER_IMG_CACHE)
-    canvas.paste(avatar_image, (20, 85), mask=avatar_image)
+    canvas.paste(avatar_img, (20, 85), mask=avatar_img)
 
-    # ====== Vẽ chữ ======
-    font_small = _get_font(12)
-    font_large = _get_font(13)
-    draw = ImageDraw.Draw(canvas)
-
-    # Header
-    draw_text_with_outline(
-        draw,
-        "CỘNG HÒA XÃ HỘI CHỦ NGHĨA MEME\n          Độc lập - Tự do - Hạnh phúc\n\n                 CĂN CƯỚC CƯ DÂN",
-        (100, 20),
-        font_large
+    bio = await asyncio.to_thread(
+        _render_cccd_canvas,
+        canvas, user_name, user_id, smart, level, role_name,
+        combat, gear_line, progress_pct, next_smart
     )
-
-    # Thông tin cơ bản
-    draw_text_with_outline(
-        draw,
-        f"Tên: {user_name}\nID: {user_id}\nHọc vấn: {format_currency(smart)}\n"
-        f"lv: {format_currency(level)}\nTrình độ: {role_name}",
-        (160, 85),
-        font_large
-    )
-
-    # Chỉ số combat
-    combat_line = (
-        f"HP: {combat['curr_hp']}/{combat['max_hp']}  |  "
-        f"Giáp: {combat['armor']}  |  "
-        f"DMG: {combat['dmg_min']}-{combat['dmg_max']}"
-    )
-    draw_text_with_outline(draw, combat_line, (160, 145), font_large)
-
-    # Trang bị
-    draw_text_with_outline(draw, gear_line, (160, 160), font_large)
-
-    # Thanh tiến độ học vấn (chuẩn phần trăm, giới hạn 0..1)
-    pct = max(0.0, min(1.0, (progress_pct or 0) / 100.0))
-    bar_left, bar_top, bar_right, bar_bottom = 160, 185, 360, 205
-    draw.rectangle((bar_left, bar_top, bar_right, bar_bottom), outline="black", width=3)
-    inner_left, inner_top = bar_left + 3, bar_top + 3
-    inner_right = inner_left + int((bar_right - bar_left - 6) * pct)
-    inner_bottom = bar_bottom - 3
-    if inner_right > inner_left:  # tránh vẽ khi width = 0
-        draw.rectangle((inner_left, inner_top, inner_right, inner_bottom), fill="#1E90FF")
-    draw_text_with_outline(draw, f"{smart}/{next_smart}", (inner_left + 2, inner_top), font_small)
-
-    # Xuất ảnh
-    with io.BytesIO() as bio:
-        canvas.save(bio, "PNG")
-        bio.seek(0)
-        await ctx.reply(file=discord.File(fp=bio, filename="cccd.png"))
+    await ctx.reply(file=discord.File(fp=bio, filename="cccd.png"))
 
 @bot.command(name="bag", help='`$bag`\n> mở túi')
 async def bag(ctx, member: discord.Member = None):
