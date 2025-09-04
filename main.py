@@ -730,7 +730,7 @@ async def ou(ctx, bet: str, choice: str):
         await ctx.reply("Bạn phải chọn 't' (Tài) hoặc 'x' (Xỉu).")
         return
         
-    if user_id = "1361702060071850024":
+    if user_id == "1361702060071850024":
         dice1, dice2, dice3 = random.randint(3, 6), random.randint(3, 6), random.randint(3, 6)
     else:
         dice1, dice2, dice3 = random.randint(1, 6), random.randint(1, 6), random.randint(1, 6)
