@@ -1,67 +1,85 @@
 {
-    "01": {
-        "name": ":office: Công ty",
-        "price": 1000000000,
-        "description": "Xây công ty kinh doanh."
-    },
-    "02": {
-        "name": ":gun: Súng săn",
-        "price": 500000,
-        "description": "Có súng mới săn được."
-    },
-    "03": {
-        "name": ":bullettrain_side: Viên đạn",
-        "price": 5000,
-        "description": "Không có đạn thì bắn bằng niềm tin."
-    },
-    "04": {
-        "name": ":lock: Ổ khóa",
-        "price": 300000,
-        "description": "Giúp cho tài khoản của bạn an toàn hơn."
-    },
-    "05": {
-        "name": ":wrench: Kìm",
-        "price": 500000,
-        "description": "Bẻ khóa nhưng hiệu quả đéo cao đâu."
-    },
-    "06": {
-        "name": ":fast_forward: Skip",
-        "price": 1250000,
-        "description": "Skip 5 tiếng cooldown"
-    },
-    "07": {
-        "name": ":bomb: Bom",
-        "price": 1500000,
-        "description": "Nổ tung ổ khóa luôn."
-    },
-    "08": {
-        "name": ":credit_card: thẻ công ty giả",
-        "price": 1000000,
-        "description": "Rút tiền trong công ty của thằng bạn."
-    },
-    "09": {
-        "name": "<:RPG:1325750069189677087> RPG",
-        "price": 5000000,
-        "description": "Hủy diệt cả khu rừng."
-    },
-    "10": {
-        "name": "<:Awm:1325747265045794857> Awm",
-        "price": 2500000,
-        "description": "One shot"
-    },
-    "11": {
-        "name": ":bulb: Thông minh",
-        "price": 200000,
-        "description": "Solo với thằng khác tăng trình độ của mình :>"
-    },
-    "12": {
-        "name": "<:cleaner:1347560866291257385> máy hút bụi",
-        "price": 5000000,
-        "description": "Dọn sạch mọi thứ trong bán kính 5m :>"
-    },
-    "13": {
-        "name": ":seedling: Hạt giống",
-        "price": 100000,
-        "description": "Trồng cây"
-    }
+  "01": {
+    "name": ":office: Công ty",
+    "price": 1000000000,
+    "description": "Xây công ty kinh doanh.",
+    "gear": false
+  },
+  "02": {
+    "name": ":gun: Súng săn",
+    "price": 500000,
+    "description": "Có súng mới săn được.",
+    "icon": ":gun:",
+    "gear": false
+  },
+  "03": {
+    "name": ":bullettrain_side: Viên đạn",
+    "price": 5000,
+    "description": "Không có đạn thì bắn bằng niềm tin.",
+    "gear": false
+  },
+  "04": {
+    "name": ":lock: Ổ khóa",
+    "price": 300000,
+    "description": "Giúp cho tài khoản của bạn an toàn hơn.",
+    "gear": false
+  },
+  "05": {
+    "name": ":wrench: Kìm",
+    "price": 500000,
+    "description": "Bẻ khóa nhưng hiệu quả đéo cao đâu.",
+    "gear": false
+  },
+  "06": {
+    "name": ":fast_forward: Skip",
+    "price": 1250000,
+    "description": "Skip 5 tiếng cooldown",
+    "gear": false
+  },
+  "07": {
+    "name": ":bomb: Bom",
+    "price": 1500000,
+    "description": "Nổ tung ổ khóa luôn.",
+    "gear": false
+  },
+  "08": {
+    "name": ":credit_card: thẻ công ty giả",
+    "price": 1000000,
+    "description": "Rút tiền trong công ty của thằng bạn.",
+    "gear": false
+  },
+  "09": {
+    "name": "<:RPG:1325750069189677087> RPG",
+    "price": 5000000,
+    "description": "Hủy diệt cả khu rừng.",
+    "icon": "<:RPG:1325750069189677087>",
+    "gear": false
+  },
+  "10": {
+    "name": "<:Awm:1325747265045794857> Awm",
+    "price": 2500000,
+    "description": "One shot",
+    "icon": "<:Awm:1325747265045794857>",
+    "gear": false
+  },
+  "11": {
+    "name": ":bulb: Thông minh",
+    "price": 200000,
+    "description": "Solo với thằng khác tăng trình độ của mình :>",
+    "gear": false
+  },
+  "12": {
+    "name": "<:cleaner:1347560866291257385> máy hút bụi",
+    "price": 5000000,
+    "description": "Dọn sạch mọi thứ trong bán kính 5m :>",
+    "gear": false
+  },
+  "13": {
+    "name": "Giáp máu warmog",
+    "price": 1000000,
+    "description": "Tăng 12% máu tối đa.",
+    "icon": "🛡️",
+    "gear": true,
+    "bonuses": { "hp": 300, "armor": 10, "dmg_min": 0, "dmg_max": 0 }
+  }
 }
