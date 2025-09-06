@@ -80,9 +80,9 @@ save_gacha_data = lambda data: save_json('gacha_data.json', data)
 # ---- Define for Text Fight ----
 # Chỉ số cơ bản
 DEFAULT_HP = 100
-DEFAULT_ARMOR = 20      # giáp điểm (trừ thẳng damage)
-BASE_DMG_MIN = 10
-BASE_DMG_MAX = 25
+DEFAULT_ARMOR = 0      # giáp điểm (trừ thẳng damage)
+BASE_DMG_MIN = 0
+BASE_DMG_MAX = 0
 EQUIP_SLOTS = 3         # 3 ô trang bị
 
 def _find_item_key(id_or_name: str) -> Optional[str]:
@@ -122,36 +122,73 @@ def _user_inventory_count(user_id: str, item_name: str) -> int:
     items = doc.get("items") or {}
     return int(items.get(item_name, 0))
 
-def _gear_bonuses(item_key: str) -> Dict[str, int]:
+def _gear_bonuses(item_key):
+    """
+    Đọc bonuses từ 1 item.
+    - bonuses.hp: số (flat) hoặc chuỗi có '%' (percent).
+    """
     item = shop_data.get(item_key) or {}
     bonuses = item.get("bonuses") or {}
+
+    hp_flat = 0
+    hp_pct = 0.0
+
+    v = bonuses.get("hp", 0)
+    try:
+        if isinstance(v, str) and "%" in v:
+            hp_pct = float(v.replace("%", "").strip())
+        else:
+            hp_flat = int(v)
+    except Exception:
+        # nếu parse lỗi thì coi như 0
+        hp_flat, hp_pct = 0, 0.0
+
+    def as_int(x):
+        try:
+            return int(x)
+        except Exception:
+            return 0
+
     return {
-        "hp": int(bonuses.get("hp", 0)),
-        "armor": int(bonuses.get("armor", 0)),
-        "dmg_min": int(bonuses.get("dmg_min", 0)),
-        "dmg_max": int(bonuses.get("dmg_max", 0)),
+        "hp_flat": hp_flat,
+        "hp_pct": hp_pct,          # lấy ra từ 'hp' duy nhất
+        "armor": as_int(bonuses.get("armor", 0)),
+        "dmg_min": as_int(bonuses.get("dmg_min", 0)),
+        "dmg_max": as_int(bonuses.get("dmg_max", 0)),
     }
 
-def _aggregate_bonuses(equips: List[Optional[str]]) -> Dict[str, int]:
-    total = {"hp": 0, "armor": 0, "dmg_min": 0, "dmg_max": 0}
+def _aggregate_bonuses(equips):
+    total = {"hp_flat": 0, "hp_pct": 0.0, "armor": 0, "dmg_min": 0, "dmg_max": 0}
     for key in equips:
         if not key:
             continue
         b = _gear_bonuses(key)
-        for k in total:
-            total[k] += b[k]
+        total["hp_flat"] += b["hp_flat"]
+        total["hp_pct"]  += b["hp_pct"]
+        total["armor"]   += b["armor"]
+        total["dmg_min"] += b["dmg_min"]
+        total["dmg_max"] += b["dmg_max"]
     return total
 
-def _effective_stats(user_id: str) -> Dict[str, int]:
-    """max_hp, armor, dmg range, curr_hp (đã cộng trang bị)."""
+def _effective_stats(user_id):
+    """
+    Max HP = (DEFAULT_HP + hp_flat) * (1 + hp_pct/100)
+    Armor  = DEFAULT_ARMOR + armor (điểm)
+    Damage = BASE + bonus (dmg_min <= dmg_max)
+    """
     equips = _get_equips(user_id)
     agg = _aggregate_bonuses(equips)
-    max_hp = DEFAULT_HP + agg["hp"]
+
+    base_hp = DEFAULT_HP + agg["hp_flat"]
+    max_hp = max(1, int(base_hp * (1.0 + agg["hp_pct"] / 100.0)))
+
     armor = DEFAULT_ARMOR + agg["armor"]
+
     dmg_min = BASE_DMG_MIN + agg["dmg_min"]
     dmg_max = BASE_DMG_MAX + agg["dmg_max"]
     if dmg_min > dmg_max:
         dmg_min = dmg_max
+
     curr_hp = _get_curr_hp(user_id)
     return {"max_hp": max_hp, "armor": armor, "dmg_min": dmg_min, "dmg_max": dmg_max, "curr_hp": curr_hp}
 
@@ -1496,7 +1533,6 @@ async def gear(ctx: commands.Context, member: Optional[discord.Member] = None):
     ]
     await ctx.reply("\n".join(lines))
 
-
 @bot.command(name="equip", help="`$equip <item_id_hoặc_tên> [ô]` → đeo vào ô trống đầu, hoặc ô 1–3 nếu chỉ định")
 async def equip(ctx: commands.Context, item_id_or_name: str, slot: Optional[int] = None):
     if not await check_permission(ctx):
@@ -1603,7 +1639,7 @@ async def fstats(ctx: commands.Context, member: Optional[discord.Member] = None)
         f"📊 **{member.name}** — HP: `{stats['curr_hp']}/{stats['max_hp']}`, "
         f"Giáp: `{stats['armor']}`, DMG: `{stats['dmg_min']}–{stats['dmg_max']}`."
     )
-    
+
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):
     if not ctx.author.guild_permissions.manage_messages:

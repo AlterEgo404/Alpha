@@ -9,7 +9,6 @@
     "name": ":gun: Súng săn",
     "price": 500000,
     "description": "Có súng mới săn được.",
-    "icon": ":gun:",
     "gear": false
   },
   "03": {
@@ -49,17 +48,15 @@
     "gear": false
   },
   "09": {
-    "name": "<:RPG:1325750069189677087> RPG",
+    "name": "<:RPG:1413753013473906748> RPG",
     "price": 5000000,
     "description": "Hủy diệt cả khu rừng.",
-    "icon": "<:RPG:1325750069189677087>",
     "gear": false
   },
   "10": {
-    "name": "<:Awm:1325747265045794857> Awm",
+    "name": "<:AWM:1413753446846431282> Awm",
     "price": 2500000,
     "description": "One shot",
-    "icon": "<:Awm:1325747265045794857>",
     "gear": false
   },
   "11": {
@@ -75,11 +72,11 @@
     "gear": false
   },
   "13": {
-    "name": "Giáp máu warmog",
+    "name": "Giáp máu Warmogs",
     "price": 1000000,
     "description": "Tăng 12% máu tối đa.",
-    "icon": "🛡️",
+    "icon": "<:Warmogs_Armor:1413751943825723523>",
     "gear": true,
-    "bonuses": { "hp": 300, "armor": 10, "dmg_min": 0, "dmg_max": 0 }
+    "bonuses": { "hp": "12%", "armor": 0, "dmg_min": 0, "dmg_max": 0 }
   }
 }
