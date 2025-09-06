@@ -6,13 +6,14 @@ import random
 import datetime
 import asyncio
 import traceback
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 import discord
 from discord.ext import commands
 
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont
+import re
 
 # ==== DB & internal ====
 from pymongo import MongoClient
@@ -254,33 +255,69 @@ async def _ensure_server_img():
         except Exception:
             _SERVER_IMG_CACHE = None
 
-def _render_cccd_canvas(canvas, user_name, user_id, smart, level, role_name,
-                        combat, gear_line, progress_pct, next_smart):
-    """Chạy trong thread: vẽ chữ, thanh tiến độ, trả BytesIO PNG."""
+def _render_cccd_canvas(
+    canvas,
+    user_name,
+    user_id,
+    smart,
+    level,
+    role_name,
+    combat,
+    gear_icons,          # ← [img1, img2, img3] hoặc tuple; mỗi phần tử là PIL.Image hoặc None
+    progress_pct,
+    next_smart,
+    show_gear_label=True # ← có thể tắt nếu muốn ẩn chữ "Trang bị:"
+):
+    """
+    Chạy trong thread: vẽ chữ, thanh tiến độ, dán 3 icon trang bị (ảnh) và trả BytesIO PNG.
+    - gear_icons: list/tuple độ dài 3; mỗi phần tử là PIL.Image (RGBA) đã resize trước (vd 24x24) hoặc None
+    """
     draw = ImageDraw.Draw(canvas)
     font_small = _get_font(12)
     font_large = _get_font(13)
 
+    # Header
     draw_text_with_outline(
         draw,
         "CỘNG HÒA XÃ HỘI CHỦ NGHĨA MEME\n          Độc lập - Tự do - Hạnh phúc\n\n                 CĂN CƯỚC CƯ DÂN",
         (100, 20), font_large
     )
+
+    # Thông tin cơ bản
     draw_text_with_outline(
         draw,
         f"Tên: {user_name}\nID: {user_id}\nHọc vấn: {format_currency(smart)}\n"
         f"lv: {format_currency(level)}\nTrình độ: {role_name}",
         (160, 85), font_large
     )
+
+    # Chỉ số combat
     combat_line = (
         f"HP: {combat['curr_hp']}/{combat['max_hp']}  |  "
         f"Giáp: {combat['armor']}  |  "
         f"DMG: {combat['dmg_min']}-{combat['dmg_max']}"
     )
     draw_text_with_outline(draw, combat_line, (160, 145), font_large)
-    draw_text_with_outline(draw, gear_line, (160, 160), font_large)
 
-    # Thanh tiến độ
+    # Trang bị: chỉ dán icon (ảnh)
+    if show_gear_label:
+        draw_text_with_outline(draw, "Trang bị:", (160, 160), font_large)
+
+    # layout 3 ô icon
+    icon_size = 24            # kích cỡ icon (nên đã resize trước khi truyền vào)
+    gap = 10                  # khoảng cách giữa các icon
+    slot_y = 160
+    x = 160 + (80 if show_gear_label else 0)
+
+    # dán 3 icon; nếu None thì để trống nhưng vẫn tịnh tiến x để giữ layout
+    for img in (gear_icons or [None, None, None]):
+        if img is not None:
+            # đảm bảo RGBA để dùng làm mask
+            icon_img = img.convert("RGBA")
+            canvas.paste(icon_img, (x, slot_y), mask=icon_img)
+        x += icon_size + gap
+
+    # Thanh tiến độ học vấn
     pct = max(0.0, min(1.0, (progress_pct or 0) / 100.0))
     bar_left, bar_top, bar_right, bar_bottom = 160, 185, 360, 205
     draw.rectangle((bar_left, bar_top, bar_right, bar_bottom), outline="black", width=3)
@@ -291,6 +328,7 @@ def _render_cccd_canvas(canvas, user_name, user_id, smart, level, role_name,
         draw.rectangle((inner_left, inner_top, inner_right, inner_bottom), fill="#1E90FF")
     draw_text_with_outline(draw, f"{smart}/{next_smart}", (inner_left + 2, inner_top), font_small)
 
+    # Xuất PNG
     bio = io.BytesIO()
     canvas.save(bio, "PNG")
     bio.seek(0)
@@ -402,6 +440,35 @@ async def clean_zero_items():
         except Exception:
             traceback.print_exc()
         await asyncio.sleep(10)
+
+_CUSTOM_EMOJI_RE = re.compile(r"<a?:[A-Za-z0-9_]+:(\d+)>")
+_EMOJI_IMG_CACHE = {}  # (emoji_id, size) -> PIL.Image
+
+async def icon_to_image(icon_str: str, size: int = 24):
+    """
+    Trả về PIL.Image (RGBA) từ icon custom emoji <:...:id> / <a:...:id>.
+    Dùng Discord CDN. Có cache theo (id, size).
+    """
+    if not icon_str:
+        return None
+    m = _CUSTOM_EMOJI_RE.fullmatch(icon_str.strip())
+    if not m:
+        return None  # không phải custom emoji
+
+    emoji_id = m.group(1)
+    cache_key = (emoji_id, size)
+    if cache_key in _EMOJI_IMG_CACHE:
+        return _EMOJI_IMG_CACHE[cache_key]
+
+    # Ưu tiên PNG (fallback WEBP)
+    for ext in ("png", "webp"):
+        url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{ext}?size={size}&quality=lossless"
+        img = await fetch_image(url)  # hàm async của bạn, trả PIL.Image RGBA
+        if img:
+            img = img.resize((size, size))
+            _EMOJI_IMG_CACHE[cache_key] = img
+            return img
+    return None
 
 # ==== EVENTS ====
 @bot.event

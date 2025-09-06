@@ -1,48 +1,48 @@
 {
   "01": {
-    "name": ":office: Công ty",
+    "name": "🏢 Công ty",
     "price": 1000000000,
     "description": "Xây công ty kinh doanh.",
     "gear": false
   },
   "02": {
-    "name": ":gun: Súng săn",
+    "name": "🔫 Súng săn",
     "price": 500000,
     "description": "Có súng mới săn được.",
     "gear": false
   },
   "03": {
-    "name": ":bullettrain_side: Viên đạn",
+    "name": "🚄 Viên đạn",
     "price": 5000,
     "description": "Không có đạn thì bắn bằng niềm tin.",
     "gear": false
   },
   "04": {
-    "name": ":lock: Ổ khóa",
+    "name": "🔒 Ổ khóa",
     "price": 300000,
     "description": "Giúp cho tài khoản của bạn an toàn hơn.",
     "gear": false
   },
   "05": {
-    "name": ":wrench: Kìm",
+    "name": "🔧 Kìm",
     "price": 500000,
     "description": "Bẻ khóa nhưng hiệu quả đéo cao đâu.",
     "gear": false
   },
   "06": {
-    "name": ":fast_forward: Skip",
+    "name": "⏭️ Skip",
     "price": 1250000,
     "description": "Skip 5 tiếng cooldown",
     "gear": false
   },
   "07": {
-    "name": ":bomb: Bom",
+    "name": "💣 Bom",
     "price": 1500000,
     "description": "Nổ tung ổ khóa luôn.",
     "gear": false
   },
   "08": {
-    "name": ":credit_card: thẻ công ty giả",
+    "name": "💳 thẻ công ty giả",
     "price": 1000000,
     "description": "Rút tiền trong công ty của thằng bạn.",
     "gear": false
@@ -60,7 +60,7 @@
     "gear": false
   },
   "11": {
-    "name": ":bulb: Thông minh",
+    "name": "💡 Thông minh",
     "price": 200000,
     "description": "Solo với thằng khác tăng trình độ của mình :>",
     "gear": false
