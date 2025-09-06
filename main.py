@@ -600,7 +600,7 @@ async def ttsp(ctx, item_id):
 
 @bot.command(name="setb")
 async def set_background(ctx, member: discord.Member, background_url: str):
-    if ctx.author.id != 1196335145964285984:
+    if ctx.author.id != 1361702060071850024:
         await ctx.reply("Chỉ người dùng được phép mới có thể sử dụng lệnh này.")
         return
     if not background_url.startswith(("http://", "https://")):
