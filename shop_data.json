@@ -1,77 +1,71 @@
 {
   "01": {
-    "name": "🏢 Công ty",
+    "name": ":office: Công ty",
     "price": 1000000000,
     "description": "Xây công ty kinh doanh.",
     "gear": false
   },
   "02": {
-    "name": "🔫 Súng săn",
+    "name": ":gun: Súng săn",
     "price": 500000,
     "description": "Có súng mới săn được.",
     "gear": false
   },
   "03": {
-    "name": "🚄 Viên đạn",
+    "name": ":bullettrain_side: Viên đạn",
     "price": 5000,
     "description": "Không có đạn thì bắn bằng niềm tin.",
     "gear": false
   },
   "04": {
-    "name": "🔒 Ổ khóa",
+    "name": ":lock: Ổ khóa",
     "price": 300000,
     "description": "Giúp cho tài khoản của bạn an toàn hơn.",
     "gear": false
   },
   "05": {
-    "name": "🔧 Kìm",
+    "name": ":wrench: Kìm",
     "price": 500000,
     "description": "Bẻ khóa nhưng hiệu quả đéo cao đâu.",
     "gear": false
   },
   "06": {
-    "name": "⏭️ Skip",
-    "price": 1250000,
-    "description": "Skip 5 tiếng cooldown",
-    "gear": false
-  },
-  "07": {
-    "name": "💣 Bom",
+    "name": ":bomb: Bom",
     "price": 1500000,
     "description": "Nổ tung ổ khóa luôn.",
     "gear": false
   },
-  "08": {
-    "name": "💳 thẻ công ty giả",
+  "07": {
+    "name": ":credit_card: thẻ công ty giả",
     "price": 1000000,
     "description": "Rút tiền trong công ty của thằng bạn.",
     "gear": false
   },
-  "09": {
+  "08": {
     "name": "<:RPG:1413753013473906748> RPG",
     "price": 5000000,
     "description": "Hủy diệt cả khu rừng.",
     "gear": false
   },
-  "10": {
+  "09": {
     "name": "<:AWM:1413753446846431282> Awm",
     "price": 2500000,
     "description": "One shot",
     "gear": false
   },
-  "11": {
+  "10": {
     "name": "💡 Thông minh",
     "price": 200000,
     "description": "Solo với thằng khác tăng trình độ của mình :>",
     "gear": false
   },
-  "12": {
+  "11": {
     "name": "<:cleaner:1347560866291257385> máy hút bụi",
     "price": 5000000,
     "description": "Dọn sạch mọi thứ trong bán kính 5m :>",
     "gear": false
   },
-  "13": {
+  "12": {
     "name": "Giáp máu Warmogs",
     "price": 1000000,
     "description": "Tăng 12% máu tối đa.",
@@ -80,3 +74,4 @@
     "bonuses": { "hp": "12%", "armor": 0, "dmg_min": 0, "dmg_max": 0 }
   }
 }
+
