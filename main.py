@@ -1517,7 +1517,6 @@ async def attack(ctx: commands.Context, target: discord.Member):
         msg += f"\n☠️ {target.name} đã gục ngã! HP reset về {tgt_after['max_hp']}."
     await ctx.send(msg)
 
-
 @bot.command(name="gear", help="`$gear [@user]` → xem 3 ô trang bị & chỉ số")
 async def gear(ctx: commands.Context, member: Optional[discord.Member] = None):
     if not await check_permission(ctx):
@@ -1631,29 +1630,6 @@ async def unequip(ctx: commands.Context, slot: int):
 
     name = shop_data.get(removed_key, {}).get("name", removed_key)
     await ctx.reply(f"✅ Đã tháo **{name}** khỏi ô `{slot}`.")
-
-
-@bot.command(name="fstats", help="`$fstats [@user]` → xem HP & giáp hiệu dụng")
-async def fstats(ctx: commands.Context, member: Optional[discord.Member] = None):
-    if not await check_permission(ctx):
-        return
-
-    member = member or ctx.author
-    user_id = str(member.id)
-
-    # Yêu cầu có tài khoản (cả khi xem người khác)
-    if not get_user(user_id):
-        if member.id == ctx.author.id:
-            await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
-        else:
-            await ctx.reply("Người chơi này chưa có tài khoản.")
-        return
-
-    stats = _effective_stats(user_id)
-    await ctx.reply(
-        f"📊 **{member.name}** — HP: `{stats['curr_hp']}/{stats['max_hp']}`, "
-        f"Giáp: `{stats['armor']}`, DMG: `{stats['dmg_min']}–{stats['dmg_max']}`."
-    )
 
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):
