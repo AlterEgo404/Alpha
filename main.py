@@ -255,23 +255,8 @@ async def _ensure_server_img():
         except Exception:
             _SERVER_IMG_CACHE = None
 
-def _render_cccd_canvas(
-    canvas,
-    user_name,
-    user_id,
-    smart,
-    level,
-    role_name,
-    combat,
-    gear_icons,          # ← [img1, img2, img3] hoặc tuple; mỗi phần tử là PIL.Image hoặc None
-    progress_pct,
-    next_smart,
-    show_gear_label=True # ← có thể tắt nếu muốn ẩn chữ "Trang bị:"
-):
-    """
-    Chạy trong thread: vẽ chữ, thanh tiến độ, dán 3 icon trang bị (ảnh) và trả BytesIO PNG.
-    - gear_icons: list/tuple độ dài 3; mỗi phần tử là PIL.Image (RGBA) đã resize trước (vd 24x24) hoặc None
-    """
+def _render_cccd_canvas(canvas, user_name, user_id, smart, level, role_name,
+                        progress_pct, next_smart):
     draw = ImageDraw.Draw(canvas)
     font_small = _get_font(12)
     font_large = _get_font(13)
@@ -291,32 +276,6 @@ def _render_cccd_canvas(
         (160, 85), font_large
     )
 
-    # Chỉ số combat
-    combat_line = (
-        f"HP: {combat['curr_hp']}/{combat['max_hp']}  |  "
-        f"Giáp: {combat['armor']}  |  "
-        f"DMG: {combat['dmg_min']}-{combat['dmg_max']}"
-    )
-    draw_text_with_outline(draw, combat_line, (160, 145), font_large)
-
-    # Trang bị: chỉ dán icon (ảnh)
-    if show_gear_label:
-        draw_text_with_outline(draw, "Trang bị:", (160, 160), font_large)
-
-    # layout 3 ô icon
-    icon_size = 24            # kích cỡ icon (nên đã resize trước khi truyền vào)
-    gap = 10                  # khoảng cách giữa các icon
-    slot_y = 160
-    x = 160 + (80 if show_gear_label else 0)
-
-    # dán 3 icon; nếu None thì để trống nhưng vẫn tịnh tiến x để giữ layout
-    for img in (gear_icons or [None, None, None]):
-        if img is not None:
-            # đảm bảo RGBA để dùng làm mask
-            icon_img = img.convert("RGBA")
-            canvas.paste(icon_img, (x, slot_y), mask=icon_img)
-        x += icon_size + gap
-
     # Thanh tiến độ học vấn
     pct = max(0.0, min(1.0, (progress_pct or 0) / 100.0))
     bar_left, bar_top, bar_right, bar_bottom = 160, 185, 360, 205
@@ -328,7 +287,6 @@ def _render_cccd_canvas(
         draw.rectangle((inner_left, inner_top, inner_right, inner_bottom), fill="#1E90FF")
     draw_text_with_outline(draw, f"{smart}/{next_smart}", (inner_left + 2, inner_top), font_small)
 
-    # Xuất PNG
     bio = io.BytesIO()
     canvas.save(bio, "PNG")
     bio.seek(0)
@@ -680,26 +638,28 @@ async def set_background(ctx, member: discord.Member, background_url: str):
         json.dump(user_backgrounds, f, ensure_ascii=False, indent=4)
     await ctx.reply(f"Đã thay đổi nền của {member.display_name} thành: {background_url}")
 
-@bot.command(name="cccd", help='`$cccd`\n> mở căn cước công dân (kèm trang bị)')
+@bot.command(name="cccd", help='`$cccd`\n> mở căn cước công dân')
 async def cccd(ctx, member: discord.Member = None, size: int = 128):
-    if not await check_permission(ctx): return
+    if not await check_permission(ctx):
+        return
     member = member or ctx.author
     user_id = str(member.id)
-    if not await check_user_data(ctx, user_id): return
+    if not await check_user_data(ctx, user_id):
+        return
 
-    # DB & chỉ số
+    # ===== DB & chỉ số học vấn =====
     data = get_user(user_id) or {}
     smart = int(data.get("smart", 0))
     user_name = member.name
+
     avatar_asset = member.display_avatar.with_size(size)
-    # dùng webp (nhẹ) nếu có API
     if hasattr(avatar_asset, "with_static_format"):
         avatar_asset = avatar_asset.with_static_format("webp")
     avatar_url = avatar_asset.url
 
     level, progress_pct, next_smart = calculate_level_and_progress(smart)
 
-    # Role tu_vi: chỉ update khi cần
+    # ===== Role tu_vi =====
     def _best_tuvi_role(level: int):
         best_name, best_id, best_min = "None", None, -1
         for name, info in tu_vi.items():
@@ -719,28 +679,12 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
         if wanted and wanted not in member.roles:
             await member.add_roles(wanted, reason="Assign cấp bậc tu_vi")
     except discord.Forbidden:
-        pass  # thiếu quyền thì bỏ qua, vẫn hiển thị role_name
+        pass
 
-    # Equip & combat
-    try:
-        equips = _get_equips(user_id)
-        combat = _effective_stats(user_id)
-    except NameError:
-        equips = [None, None, None]
-        combat = {"max_hp": 100, "armor": 20, "dmg_min": 10, "dmg_max": 25, "curr_hp": 100}
-
-    def _slot_label(key):
-        if not key or key not in shop_data:
-            return "—"
-        obj = shop_data.get(key, {})
-        return obj.get("icon") or obj.get("name", key) or "—"
-
-    gear_line = f"Trang bị: {_slot_label(equips[0])} | {_slot_label(equips[1])} | {_slot_label(equips[2])}"
-
-    # Tải ảnh song song + cache server img
+    # ===== Tải ảnh (song song) =====
     bg_url = user_backgrounds.get(
         user_id,
-        "https://cdn.discordapp.com/attachments/1317489368620994623/1413118605314363423/hinh-nen-may-tinh-dep-doc-dao-nhat-19.png?ex=68bac4c1&is=68b97341&hm=7e5a48fa33b8c9046f37d614fefc43024ef8405eb7af3d3452df9c0c61053ce1&"  # ← dùng URL CDN nhanh hơn
+        "https://cdn.discordapp.com/attachments/1317489368620994623/1413118605314363423/hinh-nen-may-tinh-dep-doc-dao-nhat-19.png"
     )
     await _ensure_server_img()
     avatar_img, bg_img = await asyncio.gather(
@@ -748,22 +692,26 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
         fetch_image(bg_url, timeout_sec=6),
     )
     if not avatar_img:
-        await ctx.reply("Lỗi tải ảnh avatar."); return
+        await ctx.reply("Lỗi tải ảnh avatar.")
+        return
     if not bg_img:
-        await ctx.reply("Lỗi tải ảnh nền."); return
+        await ctx.reply("Lỗi tải ảnh nền.")
+        return
 
-    # Compositing nhanh; upload
+    # ===== Ghép ảnh =====
     avatar_img = avatar_img.resize((120, 120))
     canvas = bg_img.resize((400, 225)).copy()
     if _SERVER_IMG_CACHE:
         canvas.paste(_SERVER_IMG_CACHE, (10, 10), mask=_SERVER_IMG_CACHE)
     canvas.paste(avatar_img, (20, 85), mask=avatar_img)
 
+    # ===== Render CCCD (chỉ thông tin cơ bản + học vấn) =====
     bio = await asyncio.to_thread(
         _render_cccd_canvas,
         canvas, user_name, user_id, smart, level, role_name,
-        combat, gear_line, progress_pct, next_smart
+        progress_pct, next_smart
     )
+
     await ctx.reply(file=discord.File(fp=bio, filename="cccd.png"))
 
 @bot.command(name="bag", help='`$bag`\n> mở túi')
