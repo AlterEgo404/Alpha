@@ -376,7 +376,7 @@ async def update_company_balances():
             for doc in cursor:
                 uid = doc["_id"]
                 balance = doc.get("company_balance", 0)
-                modifier = random.choice([-0.01, 0.02])
+                modifier = random.choice([-0.01, 0.01])
                 new_balance = max(0, int(balance + balance * modifier))
                 if new_balance != balance:
                     update_user(uid, {"company_balance": new_balance})
