@@ -71,7 +71,7 @@
     "description": "+600 máu và tăng 12% máu tối đa.",
     "icon": "<:Warmogs_Armor:1413751943825723523>",
     "gear": true,
-    "stats": { "hp": 600, "armor": 0, "dmg_min": 0, "dmg_max": 0 },
+    "stats": { "hp": 600 },
     "effects": { "max_hp_percent": 12 }
   }
 }
