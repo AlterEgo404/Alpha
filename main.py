@@ -85,11 +85,19 @@ save_tu_vi = lambda data: save_json('tu_vi.json', data)
 gacha_data = load_json('gacha_data.json')
 save_gacha_data = lambda data: save_json('gacha_data.json', data)
 
-try:
-    with open("backgrounds.json", "r", encoding="utf-8") as f:
-        user_backgrounds = json.load(f)
-except FileNotFoundError:
-    user_backgrounds = {}
+def get_user_background(user_id: str) -> str:
+    doc = backgrounds_col.find_one({"_id": user_id})
+    return doc.get("background", None) if doc else None
+
+def set_user_background(user_id: str, background: str):
+    backgrounds_col.update_one(
+        {"_id": user_id},
+        {"$set": {"background": background}},
+        upsert=True
+    )
+
+def remove_user_background(user_id: str):
+    backgrounds_col.delete_one({"_id": user_id})
 
 # ---- Image/Text helpers ----
 def draw_text_with_outline(draw, text, position, font, outline_color="black", fill_color="white"):
@@ -504,18 +512,22 @@ async def ttsp(ctx, item_id):
 
 @bot.command(name="setb")
 async def set_background(ctx, member: discord.Member, background_url: str):
+    # Chỉ bạn mới dùng được
     if ctx.author.id != 1361702060071850024:
         await ctx.reply("Chỉ người dùng được phép mới có thể sử dụng lệnh này.")
         return
+
+    # Check link hợp lệ
     if not background_url.startswith(("http://", "https://")):
         await ctx.reply("URL không hợp lệ. Vui lòng cung cấp URL hợp lệ.")
         return
 
     user_id = str(member.id)
-    user_backgrounds[user_id] = background_url
-    with open("backgrounds.json", "w", encoding="utf-8") as f:
-        json.dump(user_backgrounds, f, ensure_ascii=False, indent=4)
-    await ctx.reply(f"Đã thay đổi nền của {member.display_name} thành: {background_url}")
+
+    # Lưu vào DB Mongo
+    set_user_background(user_id, background_url)
+
+    await ctx.reply(f"✅ Đã thay đổi nền của **{member.display_name}** thành: {background_url}")
 
 @bot.command(name="cccd", help='`$cccd`\n> mở căn cước công dân')
 async def cccd(ctx, member: discord.Member = None, size: int = 128):
@@ -561,10 +573,9 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
         pass
 
     # ===== Tải ảnh (song song) =====
-    bg_url = user_backgrounds.get(
-        user_id,
-        "https://cdn.discordapp.com/attachments/1316987020081496085/1417469300503089224/image.png?ex=68cc92e8&is=68cb4168&hm=91df3579eab0cbe449f90c23c1cc366f5da1f9d26b16f0a314e362c749011f1c&"
-    )
+    bg_url = get_user_background(user_id)
+    if not bg_url:
+        bg_url = "https://cdn.discordapp.com/attachments/1316987020081496085/1417469300503089224/image.png?ex=68d5cd68&is=68d47be8&hm=224a608dfac50edfdff40a2c653ad92ef0c33b3889e507e79aa854fa24d4e0ca&"  # default
     await _ensure_server_img()
     avatar_img, bg_img = await asyncio.gather(
         fetch_image(avatar_url, timeout_sec=6),
