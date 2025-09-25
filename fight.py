@@ -1,6 +1,6 @@
 # fight.py
 from typing import Optional, List
-from .shop_data import shop_data   # hoặc import đúng path bạn đang dùng
+from shop_data import shop_data   # hoặc import đúng path bạn đang dùng
 from .db import users_col          # hoặc import Mongo connection
 
 # ---- Define for Text Fight ----
