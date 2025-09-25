@@ -125,24 +125,13 @@ def _user_inventory_count(user_id: str, item_name: str) -> int:
 
 def _gear_bonuses(item_key):
     """
-    Đọc bonuses từ 1 item.
-    - bonuses.hp: số (flat) hoặc chuỗi có '%' (percent).
+    Đọc stats + effects từ 1 item.
+    - stats: cộng thẳng
+    - effects: buff đặc biệt (ví dụ % máu)
     """
     item = shop_data.get(item_key) or {}
-    bonuses = item.get("bonuses") or {}
-
-    hp_flat = 0
-    hp_pct = 0.0
-
-    v = bonuses.get("hp", 0)
-    try:
-        if isinstance(v, str) and "%" in v:
-            hp_pct = float(v.replace("%", "").strip())
-        else:
-            hp_flat = int(v)
-    except Exception:
-        # nếu parse lỗi thì coi như 0
-        hp_flat, hp_pct = 0, 0.0
+    stats = item.get("stats", {})
+    effects = item.get("effects", {})
 
     def as_int(x):
         try:
@@ -151,11 +140,11 @@ def _gear_bonuses(item_key):
             return 0
 
     return {
-        "hp_flat": hp_flat,
-        "hp_pct": hp_pct,          # lấy ra từ 'hp' duy nhất
-        "armor": as_int(bonuses.get("armor", 0)),
-        "dmg_min": as_int(bonuses.get("dmg_min", 0)),
-        "dmg_max": as_int(bonuses.get("dmg_max", 0)),
+        "hp_flat": as_int(stats.get("hp", 0)),
+        "armor": as_int(stats.get("armor", 0)),
+        "dmg_min": as_int(stats.get("dmg_min", 0)),
+        "dmg_max": as_int(stats.get("dmg_max", 0)),
+        "hp_pct": float(effects.get("max_hp_percent", 0))
     }
 
 def _aggregate_bonuses(equips):
