@@ -1,7 +1,23 @@
 # fight.py
 from typing import Optional, List
-from shop_data import shop_data   # hoặc import đúng path bạn đang dùng
 from .db import users_col          # hoặc import Mongo connection
+import json
+import os
+
+def load_json(file_name, default_data=None):
+    if not os.path.exists(file_name):
+        default_data = default_data or {}
+        with open(file_name, 'w', encoding='utf-8') as f:
+            json.dump(default_data, f, ensure_ascii=False, indent=4)
+    with open(file_name, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def save_json(file_name, data):
+    with open(file_name, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+shop_data = load_json('shop_data.json')
+save_shop_data = lambda data: save_json('shop_data.json', data)
 
 # ---- Define for Text Fight ----
 # Chỉ số cơ bản
