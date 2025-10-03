@@ -1185,12 +1185,12 @@ async def op(ctx, member: discord.Member, creativity: str = None):
     now = datetime.datetime.now()
     last_op = oper.get("last_op")
     cooldown_time = 300  # 5 phút
-    if last_rob:
+    if last_op:
         elapsed = (now - datetime.datetime.strptime(last_op, "%Y-%m-%d %H:%M:%S")).total_seconds()
         if elapsed < cooldown_time:
             remain = cooldown_time - elapsed
             m, s = divmod(remain, 60)
-            return await ctx.reply(f"⏳Đang bổ sung khiến thức trong {int(m)} phút {int(s)}")
+            return await ctx.reply(f"⏳ Đang bổ sung kiến thức trong {int(m)} phút {int(s)} giây")
 
     # --- Tính tỉ lệ thành công ---
     oper_smart = oper.get("smart", 0)
@@ -1200,11 +1200,9 @@ async def op(ctx, member: discord.Member, creativity: str = None):
     stolen_ratio = 0.1  # mặc định ăn 10%
 
     if oper_smart >= victim_smart:
-        # mạnh hơn -> dễ thành công
-        success_rate = min(0.8, base_success + 0.2)  # max 80%
+        success_rate = 0.7  # dễ thành công hơn (70%)
     else:
-        # yếu hơn -> khó hơn nhưng ăn nhiều hơn
-        success_rate = max(0.3, base_success - 0.2)  # min 30%
+        success_rate = 0.3  # khó hơn (30%)
         stolen_ratio = 0.2  # ăn nhiều hơn
 
     # --- Nếu có dùng sáng tạo ---
@@ -1221,33 +1219,36 @@ async def op(ctx, member: discord.Member, creativity: str = None):
 
         # Trừ sáng tạo
         oper["items"][":bulb: sự sáng tạo"] -= creativity_used
-        success_rate += 0.1 * creativity_used  # +10% mỗi cái
+        success_rate += 0.1 * creativity_used
         success_rate = min(success_rate, 0.95)  # cap 95%
 
     # --- Thử vận may ---
     if random.random() < success_rate:
         if victim_smart <= 0:
-            await ctx.reply(f"{member.name} không có học vấn để húp.")
+            msg = f"{member.name} không có học vấn để húp."
         else:
             stolen = round(victim_smart * stolen_ratio)
             victim["smart"] -= round(stolen * 0.5)
             oper["smart"] += stolen
             oper["points"] += stolen
-            oper["last_rob"] = now.strftime("%Y-%m-%d %H:%M:%S")
-
-            update_user(victim_id, victim)
-            await ctx.reply(
+            msg = (
                 f"🎯 Thành công! Bạn đã húp {format_currency(stolen)} {coin} "
                 f"và học vấn từ {member.name}! "
                 f"{'(Dùng ' + str(creativity_used) + ' sáng tạo)' if creativity_used else ''}"
             )
     else:
-        await ctx.reply(
+        msg = (
             f"💨 Bạn đã cố ao trình {member.name} nhưng thất bại. "
             f"{'(Dù đã dùng ' + str(creativity_used) + ' sáng tạo)' if creativity_used else ''}"
         )
 
+    # Lưu cooldown
+    oper["last_op"] = now.strftime("%Y-%m-%d %H:%M:%S")
+
     update_user(oper_id, oper)
+    update_user(victim_id, victim)
+
+    await ctx.reply(msg)
 
 @bot.command(name="lb", help='`$lb`\n> xem bảng xếp hạng')
 async def lb(ctx, kind: str = "a"):
@@ -1360,35 +1361,45 @@ async def study(ctx):
     user_id = str(ctx.author.id)
     data = get_user(user_id)
 
+    if not data:
+        await ctx.reply("Bạn chưa có tài khoản, dùng `$start` để bắt đầu.")
+        return
+
     # Check sách vở
-    books = data["items"].get(":books: Sách vở", 0)
+    books = data.get("items", {}).get(":books: Sách vở", 0)
     if books <= 0:
         await ctx.send("📚 Bạn cần có ít nhất 1 quyển **sách vở** để học!")
         return
 
     # Cooldown 5 phút
     now = datetime.datetime.now()
-    last_study = user_id.get("last_study")
+    last_study_str = data.get("last_study")
     cooldown_time = 300  # 5 phút
-    if last_study:
-        elapsed = (now - datetime.datetime.strptime(last_study, "%Y-%m-%d %H:%M:%S")).total_seconds()
-        if elapsed < cooldown_time:
-            remain = cooldown_time - elapsed
-            m, s = divmod(remain, 60)
-            await ctx.reply(f"⏳ Thời gian nghỉ giải lao còn {int(m)} phút {int(s)} giây")
-            return
+    if last_study_str:
+        try:
+            last_study = datetime.datetime.strptime(last_study_str, "%Y-%m-%d %H:%M:%S")
+            elapsed = (now - last_study).total_seconds()
+            if elapsed < cooldown_time:
+                remain = cooldown_time - elapsed
+                m, s = divmod(remain, 60)
+                await ctx.reply(f"⏳ Thời gian nghỉ giải lao còn {int(m)} phút {int(s)} giây")
+                return
+        except Exception:
+            pass  # Nếu parse lỗi thì coi như chưa học lần nào
 
     # Tăng học vấn
     gain = 10 * books
-    data["smart"] += gain
+    data["smart"] = data.get("smart", 0) + gain
 
     # 10% cơ hội nhận "sự sáng tạo"
+    bonus_msg = ""
     if random.random() < 0.1:
         creativity = data["items"].get(":bulb: sự sáng tạo", 0)
         data["items"][":bulb: sự sáng tạo"] = creativity + 1
         bonus_msg = "✨ Bạn đã nảy ra **một ý tưởng sáng tạo**!"
-    else:
-        bonus_msg = ""
+
+    # Lưu lại thời gian học
+    data["last_study"] = now.strftime("%Y-%m-%d %H:%M:%S")
 
     update_user(user_id, data)
 
