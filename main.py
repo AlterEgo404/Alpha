@@ -1366,6 +1366,18 @@ async def study(ctx):
         await ctx.send("📚 Bạn cần có ít nhất 1 quyển **sách vở** để học!")
         return
 
+    # Cooldown 5 phút
+    now = datetime.datetime.now()
+    last_rob = killer.get("last_rob")
+    cooldown_time = 300  # 5 phút
+    if last_rob:
+        elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
+        if elapsed < cooldown_time:
+            remain = cooldown_time - elapsed
+            m, s = divmod(remain, 60)
+            await ctx.reply(f"⏳ Còn {int(m)} phút {int(s)} giây nữa mới săn được.")
+            return
+
     # Tăng học vấn
     gain = 10 * books
     data["smart"] += gain
