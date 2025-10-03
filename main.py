@@ -34,7 +34,7 @@ client = MongoClient(MONGO_URI)
 # Load dữ liệu & handler
 from data_handler import (
     get_user, update_user, create_user, save_user_full,
-    get_jackpot, update_jackpot as dh_update_jackpot, set_jackpot,
+    get_jackpot, update_jackpot, set_jackpot,
     users_col, backgrounds_col
 )
 
@@ -324,11 +324,6 @@ async def on_ready():
 
     bot.loop.create_task(update_company_balances())
     bot.loop.create_task(clean_zero_items())
-
-    # Khởi tạo jackpot nếu chưa có
-    if get_jackpot() is None:
-        set_jackpot(1_000_000_000)
-        print("Đã khởi tạo jackpot mặc định.")
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -648,6 +643,7 @@ async def tx(ctx, bet: str, choice: str):
         return
 
     user_id = str(ctx.author.id)
+    jackpot_amount = format_currency(get_jackpot() or 0)
 
     data = get_user(user_id)
     if not data:
@@ -675,14 +671,25 @@ async def tx(ctx, bet: str, choice: str):
     dice1, dice2, dice3 = random.randint(1, 6), random.randint(1, 6), random.randint(1, 6)
     total = dice1 + dice2 + dice3
 
-    # Tính kết quả
-    win = (3 <= total <= 10 and choice == "x") or (11 <= total <= 18 and choice == "t")
-    if win:
-        data['points'] += bet
-    else:
-        data['points'] -= bet
-        dh_update_jackpot(bet)  # Cập nhật jackpot nếu thua
+    # ===== Tính kết quả =====
+    jackpot_won = False
 
+    # Kiểm tra jackpot
+    if bet * 100 >= jackpot_amount and total in (3, 18):
+        data["points"] += jackpot_amount
+        set_jackpot(0)
+        jackpot_won = True
+
+    # Nếu không trúng jackpot thì xử lý tài/xỉu
+    if not jackpot_won:
+        win = (3 <= total <= 10 and choice == "x") or (11 <= total <= 18 and choice == "t")
+        if win:
+            data['points'] += bet
+        else:
+            data['points'] -= bet
+            update_jackpot(bet)
+
+    # Cập nhật user
     update_user(user_id, data)
 
     # Hiển thị xúc xắc
@@ -838,9 +845,9 @@ async def help(ctx, command=None):
             title="Danh sách lệnh",
             description=(
                 f"Lệnh tài khoản:\n> `$start`, `$lb`, `$dn`, `$cccd`, `$bag`\n"
-                f"Lệnh mua bán:\n> `$mk`, `$ttsp`, `$buy`, `$sell`\n"
-                f"Lệnh kiếm tiền:\n> `$daily`, `$prog`, `$hunt`\n"
-                f"Lệnh tệ nạn:\n> `$ou`, `$thief`, `$othief`, `$slots`\n"
+                f"Lệnh mua bán:\n> `$shop`, `$ttsp`, `$buy`, `$sell`\n"
+                f"Lệnh kiếm tiền:\n> `$daily`, `$beg`, `$hunt`\n"
+                f"Lệnh tệ nạn:\n> `$tx`, `$rob`, `$orob`\n"
                 f"Lệnh học vấn:\n> `$op`, `$study`"
             ),
             color=discord.Color.red()
