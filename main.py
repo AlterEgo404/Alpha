@@ -1361,7 +1361,7 @@ async def study(ctx):
     data = get_user(user_id)
 
     # Check sách vở
-    books = data["items"].get("sách vở", 0)
+    books = data["items"].get(":books: Sách vở", 0)
     if books <= 0:
         await ctx.send("📚 Bạn cần có ít nhất 1 quyển **sách vở** để học!")
         return
