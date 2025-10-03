@@ -54,18 +54,12 @@
     "gear": false
   },
   "10": {
-    "name": "💡 Thông minh",
-    "price": 200000,
-    "description": "Solo với thằng khác tăng trình độ của mình :>",
+    "name": ":books: Sách vở",
+    "price": 100000,
+    "description": "tăng thêm học vấn cho mỗi lần học cụ thể là 10",
     "gear": false
   },
   "11": {
-    "name": "<:cleaner:1347560866291257385> máy hút bụi",
-    "price": 5000000,
-    "description": "Dọn sạch mọi thứ trong bán kính 5m :>",
-    "gear": false
-  },
-  "12": {
     "name": "Giáp máu Warmogs",
     "price": 1000000,
     "description": "+600 máu và tăng 12% máu tối đa.",

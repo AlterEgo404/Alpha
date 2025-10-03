@@ -639,81 +639,95 @@ async def bag(ctx, member: discord.Member = None):
 
 @bot.command(name="tx", help='`$tx <điểm> <t/x>`\n> chơi tài xỉu')
 async def tx(ctx, bet: str, choice: str):
-    if not await check_permission(ctx):
-        return
-
-    user_id = str(ctx.author.id)
-    jackpot_amount = format_currency(get_jackpot() or 0)
-
-    data = get_user(user_id)
-    if not data:
-        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
-        return
-
-    if bet.lower() == 'all':
-        bet = data.get('points', 0)
-    else:
-        try:
-            bet = int(bet)
-        except ValueError:
-            await ctx.reply(f"Số {coin} cược không hợp lệ.")
+    try:
+        if not await check_permission(ctx):
             return
 
-    if bet <= 0 or bet > data.get('points', 0):
-        await ctx.reply("Bạn làm đéo gì có tiền mà cược :rofl:")
-        return
+        user_id = str(ctx.author.id)
 
-    choice = choice.lower()
-    if choice not in ["t", "x"]:
-        await ctx.reply("Bạn phải chọn 't' (Tài) hoặc 'x' (Xỉu).")
-        return
+        # Lấy jackpot hiện tại
+        jackpot_amount = int(get_jackpot() or 0)
+        jackpot_display = format_currency(jackpot_amount)
 
-    dice1, dice2, dice3 = random.randint(1, 6), random.randint(1, 6), random.randint(1, 6)
-    total = dice1 + dice2 + dice3
+        # Lấy thông tin user
+        data = get_user(user_id)
+        if not data:
+            await ctx.reply("Bạn chưa có tài khoản, dùng `$start` để bắt đầu.")
+            return
 
-    # ===== Tính kết quả =====
-    jackpot_won = False
-
-    # Kiểm tra jackpot
-    if bet * 100 >= jackpot_amount and total in (3, 18):
-        data["points"] += jackpot_amount
-        set_jackpot(0)
-        jackpot_won = True
-
-    # Nếu không trúng jackpot thì xử lý tài/xỉu
-    if not jackpot_won:
-        win = (3 <= total <= 10 and choice == "x") or (11 <= total <= 18 and choice == "t")
-        if win:
-            data['points'] += bet
+        # Xử lý bet
+        if bet.lower() == "all":
+            bet_val = int(data.get("points", 0))
         else:
-            data['points'] -= bet
-            update_jackpot(bet)
+            try:
+                bet_val = int(bet)
+            except:
+                await ctx.reply("Số tiền cược không hợp lệ.")
+                return
 
-    # Cập nhật user
-    update_user(user_id, data)
+        if bet_val <= 0 or bet_val > int(data.get("points", 0)):
+            await ctx.reply("Bạn không đủ tiền để cược.")
+            return
 
-    # Hiển thị xúc xắc
-    dice1_emoji = dice_emojis[dice1]
-    dice2_emoji = dice_emojis[dice2]
-    dice3_emoji = dice_emojis[dice3]
-    dice_roll = dice_emojis[0]
+        # Check lựa chọn
+        choice = choice.lower()
+        if choice not in ["t", "x"]:
+            await ctx.reply("Bạn phải chọn 't' (Tài) hoặc 'x' (Xỉu).")
+            return
 
-    if choice == 'x':
-        rolling_message = await ctx.reply(f"`   ` {dice_roll} `   `\n`  `{dice_roll} {dice_roll}`$$`")
-    else:
-        rolling_message = await ctx.reply(f"`   ` {dice_roll} `   `\n`$$`{dice_roll} {dice_roll}`  `")
-    await asyncio.sleep(1)
+        # Gieo xúc xắc
+        dice1, dice2, dice3 = random.randint(1,6), random.randint(1,6), random.randint(1,6)
+        total = dice1 + dice2 + dice3
 
-    if 3 <= total <= 10:
-        if choice == "x":
-            await rolling_message.edit(content=f"`   ` {dice1_emoji} `Xỉu`\n`  `{dice2_emoji} {dice3_emoji}`$$`")
+        # ===== TÍNH KẾT QUẢ =====
+        jackpot_won = False
+        if bet_val * 100 >= jackpot_amount and total in (3, 18) and jackpot_amount > 0:
+            # Ăn jackpot
+            data["points"] += jackpot_amount
+            set_jackpot(0)
+            jackpot_won = True
         else:
-            await rolling_message.edit(content=f"`   ` {dice1_emoji} `Xỉu`\n`$$`{dice2_emoji} {dice3_emoji}`  `\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:")
-    else:
-        if choice == "x":
-            await rolling_message.edit(content=f"`Tài` {dice1_emoji} `   `\n`  `{dice2_emoji} {dice3_emoji}`$$`\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:")
+            win = (3 <= total <= 10 and choice == "x") or (11 <= total <= 18 and choice == "t")
+            if win:
+                data["points"] += bet_val
+            else:
+                data["points"] -= bet_val
+                update_jackpot(bet_val)
+
+        # Cập nhật DB
+        update_user(user_id, data)
+
+        # ===== HIỂN THỊ ANIMATION =====
+        def _emoji(i): return dice_emojis.get(i, str(i))
+        dice1_emoji, dice2_emoji, dice3_emoji = _emoji(dice1), _emoji(dice2), _emoji(dice3)
+        dice_roll = _emoji(0)
+
+        if choice == 'x':
+            rolling_message = await ctx.reply(f"`   ` {dice_roll} `   `\n`  `{dice_roll} {dice_roll}`$$`")
         else:
-            await rolling_message.edit(content=f"`Tài` {dice1_emoji} `   `\n`$$`{dice2_emoji} {dice3_emoji}`  `")
+            rolling_message = await ctx.reply(f"`   ` {dice_roll} `   `\n`$$`{dice_roll} {dice_roll}`  `")
+        await asyncio.sleep(1)
+
+        # ===== KẾT QUẢ SAU ANIMATION =====
+        jackpot_text = f"\n🎉 Bạn ăn JACKPOT **{jackpot_display}**!" if jackpot_won else ""
+
+        if 3 <= total <= 10:  # Xỉu
+            if choice == "x":
+                await rolling_message.edit(content=f"`   ` {dice1_emoji} `Xỉu`\n`  `{dice2_emoji} {dice3_emoji}`$$`{jackpot_text}")
+            else:
+                await rolling_message.edit(
+                    content=f"`   ` {dice1_emoji} `Xỉu`\n`$$`{dice2_emoji} {dice3_emoji}`  `\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:{jackpot_text}"
+                )
+        else:  # Tài
+            if choice == "x":
+                await rolling_message.edit(
+                    content=f"`Tài` {dice1_emoji} `   `\n`  `{dice2_emoji} {dice3_emoji}`$$`\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:{jackpot_text}"
+                )
+            else:
+                await rolling_message.edit(content=f"`Tài` {dice1_emoji} `   `\n`$$`{dice2_emoji} {dice3_emoji}`  `{jackpot_text}")
+
+    except Exception as e:
+        await ctx.reply(f"Đã xảy ra lỗi: {e}")
 
 @bot.command(name="daily", help='`$daily`\n> nhận quà hằng ngày')
 async def daily(ctx):
@@ -1149,76 +1163,91 @@ async def orob(ctx, member: discord.Member):
     else:
         await ctx.reply("Bạn làm đéo gì có thẻ mà rút")
 
-@bot.command(name="op", help='`$op <người chơi>`\n> săn smart')
-async def op(ctx, member: discord.Member):
+@bot.command(name="op", help='`$op <người chơi> [st<số>]`\n> săn smart, có thể dùng sáng tạo để tăng tỉ lệ')
+async def op(ctx, member: discord.Member, creativity: str = None):
     if not await check_permission(ctx):
         return
 
     killer_id = str(ctx.author.id)
     victim_id = str(member.id)
-    success = 0.5
 
     killer = get_user(killer_id)
     victim = get_user(victim_id)
 
     if killer is None:
-        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng $start để tạo tài khoản.")
-        return
-
+        return await ctx.reply("Bạn chưa có tài khoản, vui lòng dùng $start trước.")
     if victim is None:
-        await ctx.reply("Nạn nhân ko có trong dữ liệu của trò chơi.")
-        return
+        return await ctx.reply("Nạn nhân không có trong dữ liệu.")
+    if killer_id == victim_id:
+        return await ctx.reply("Bạn không thể tự OP chính mình 🤣")
 
+    # Cooldown 5 phút
     now = datetime.datetime.now()
-    last_rob = killer.get('last_rob')
-    cooldown_time = 60 * 60
+    last_rob = killer.get("last_rob")
+    cooldown_time = 300  # 5 phút
     if last_rob:
-        time_elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
-        if time_elapsed < cooldown_time:
-            if killer['items'].get(':fast_forward: Skip', 0) > 0:
-                killer['items'][':fast_forward: Skip'] -= 1
-                await ctx.reply("Bạn đã sử dụng :fast_forward: Skip để bỏ qua thời gian chờ!")
-            else:
-                remaining_time = cooldown_time - time_elapsed
-                hours, remainder = divmod(remaining_time, 3600)
-                minutes, seconds = divmod(remainder, 60)
-                await ctx.reply(f"Bạn phải chờ {int(hours)} giờ {int(minutes)} phút {int(seconds)} giây trước khi săn lại.")
-                return
+        elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
+        if elapsed < cooldown_time:
+            remain = cooldown_time - elapsed
+            m, s = divmod(remain, 60)
+            return await ctx.reply(f"⏳ Còn {int(m)} phút {int(s)} giây nữa mới săn được.")
 
-    if killer['items'].get(':bulb: Thông minh', 0) <= 0:
-        await ctx.reply("Bạn làm đéo gì có sự thông minh :rofl:")
-        return
+    # --- Tính tỉ lệ thành công ---
+    killer_smart = killer.get("smart", 0)
+    victim_smart = victim.get("smart", 0)
 
-    if victim_id == killer_id:
-        await ctx.reply('mày tính tự solo à con, méo có đâu nhé :>')
-        return
+    base_success = 0.5  # mặc định 50%
+    stolen_ratio = 0.1  # mặc định ăn 10%
 
-    if killer['items'].get('<:big_nao:1308790909353328640> siêu thông minh `Legendary`', 0) > 0:
-        success += 0.5
-
-    if random.random() < success:
-        killer['items'][':bulb: Thông minh'] -= 1
-        await ctx.reply(f"Bạn đã sử dụng sự thông minh để ao trình {member.name} và đã thành công!")
-
-        victim_smart = victim.get('smart', 0)
-        if victim_smart <= 0:
-            await ctx.reply(f"{member.name} không có học vấn để húp!")
-            return
-
-        stolen_points = round(victim_smart * 0.1)
-        victim['smart'] -= round(stolen_points * 0.5)
-        killer['smart'] += stolen_points
-        killer['points'] += stolen_points
-        killer['last_rob'] = now.strftime("%Y-%m-%d %H:%M:%S")
-
-        update_user(killer_id, killer)
-        update_user(victim_id, victim)
-
-        await ctx.reply(f"Bạn đã húp được {format_currency(stolen_points)} {coin}, học vấn từ {member.name}!")
+    if killer_smart >= victim_smart:
+        # mạnh hơn -> dễ thành công
+        success_rate = min(0.8, base_success + 0.2)  # max 80%
     else:
-        killer['items'][':bulb: Thông minh'] -= 1
-        update_user(killer_id, killer)
-        await ctx.reply(f"Bạn đã sử dụng sự thông minh để ao trình {member.name} nhưng không thành công.")
+        # yếu hơn -> khó hơn nhưng ăn nhiều hơn
+        success_rate = max(0.3, base_success - 0.2)  # min 30%
+        stolen_ratio = 0.2  # ăn nhiều hơn
+
+    # --- Nếu có dùng sáng tạo ---
+    creativity_used = 0
+    if creativity and creativity.startswith("st"):
+        try:
+            creativity_used = int(creativity[2:]) if len(creativity) > 2 else 1
+        except ValueError:
+            creativity_used = 1
+
+        available = killer["items"].get("[sự sáng tạo]", 0)
+        if available < creativity_used:
+            return await ctx.reply(f"Bạn không đủ [sự sáng tạo] (còn {available}).")
+
+        # Trừ sáng tạo
+        killer["items"]["[sự sáng tạo]"] -= creativity_used
+        success_rate += 0.1 * creativity_used  # +10% mỗi cái
+        success_rate = min(success_rate, 0.95)  # cap 95%
+
+    # --- Thử vận may ---
+    if random.random() < success_rate:
+        if victim_smart <= 0:
+            await ctx.reply(f"{member.name} không có học vấn để húp.")
+        else:
+            stolen = round(victim_smart * stolen_ratio)
+            victim["smart"] -= round(stolen * 0.5)
+            killer["smart"] += stolen
+            killer["points"] += stolen
+            killer["last_rob"] = now.strftime("%Y-%m-%d %H:%M:%S")
+
+            update_user(victim_id, victim)
+            await ctx.reply(
+                f"🎯 Thành công! Bạn đã húp {format_currency(stolen)} {coin} "
+                f"và học vấn từ {member.name}! "
+                f"{'(Dùng ' + str(creativity_used) + ' sáng tạo)' if creativity_used else ''}"
+            )
+    else:
+        await ctx.reply(
+            f"💨 Bạn đã cố ao trình {member.name} nhưng thất bại. "
+            f"{'(Dù đã dùng ' + str(creativity_used) + ' sáng tạo)' if creativity_used else ''}"
+        )
+
+    update_user(killer_id, killer)
 
 @bot.command(name="lb", help='`$lb`\n> xem bảng xếp hạng')
 async def lb(ctx, kind: str = "a"):
@@ -1328,37 +1357,30 @@ async def gacha(ctx):
 
 @bot.command(name='study', help='`$study`\n> Học tăng trình độ')
 async def study(ctx):
-    if not await check_permission(ctx):
-        return
-
     user_id = str(ctx.author.id)
-    now = datetime.datetime.now()
+    data = get_user(user_id)
 
-    user = users_col.find_one({"_id": user_id})
-    if not user:
-        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để bắt đầu.")
+    # Check sách vở
+    books = data["items"].get("sách vở", 0)
+    if books <= 0:
+        await ctx.send("📚 Bạn cần có ít nhất 1 quyển **sách vở** để học!")
         return
 
-    last_study = user.get('last_study')
-    cooldown_time = 5 * 60  # 5 phút
+    # Tăng học vấn
+    gain = 10 * books
+    data["smart"] += gain
 
-    if last_study:
-        time_elapsed = (now - datetime.datetime.strptime(last_study, "%Y-%m-%d %H:%M:%S")).total_seconds()
-        if time_elapsed < cooldown_time:
-            minutes, seconds = divmod(int(cooldown_time - time_elapsed), 60)
-            await ctx.reply(f"Bạn cần chờ {minutes} phút {seconds} giây trước khi có thể học tiếp!")
-            return
+    # 10% cơ hội nhận "sự sáng tạo"
+    if random.random() < 0.1:
+        creativity = data["items"].get("sự sáng tạo", 0)
+        data["items"][":bulb: sự sáng tạo"] = creativity + 1
+        bonus_msg = "✨ Bạn đã nảy ra **một ý tưởng sáng tạo**!"
+    else:
+        bonus_msg = ""
 
-    # Tăng smart và cập nhật last_study
-    users_col.update_one(
-        {"_id": user_id},
-        {
-            "$inc": {"smart": 10},
-            "$set": {"last_study": now.strftime("%Y-%m-%d %H:%M:%S")}
-        }
-    )
+    update_user(user_id, data)
 
-    await ctx.reply("Bạn vừa học xong ra chơi thôi!")
+    await ctx.send(f"📖 Bạn học hành chăm chỉ và nhận được **+{gain} học vấn**! {bonus_msg}")
 
 # ===== Commands for Text Fight =====
 @bot.command(name="attack", help="`$attack @user` → tấn công người chơi")
