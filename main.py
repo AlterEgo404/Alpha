@@ -1168,38 +1168,38 @@ async def op(ctx, member: discord.Member, creativity: str = None):
     if not await check_permission(ctx):
         return
 
-    killer_id = str(ctx.author.id)
+    oper_id = str(ctx.author.id)
     victim_id = str(member.id)
 
-    killer = get_user(killer_id)
+    oper = get_user(oper_id)
     victim = get_user(victim_id)
 
-    if killer is None:
+    if oper is None:
         return await ctx.reply("Bạn chưa có tài khoản, vui lòng dùng $start trước.")
     if victim is None:
         return await ctx.reply("Nạn nhân không có trong dữ liệu.")
-    if killer_id == victim_id:
+    if oper_id == victim_id:
         return await ctx.reply("Bạn không thể tự OP chính mình 🤣")
 
     # Cooldown 5 phút
     now = datetime.datetime.now()
-    last_rob = killer.get("last_rob")
+    last_op = oper.get("last_op")
     cooldown_time = 300  # 5 phút
     if last_rob:
-        elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
+        elapsed = (now - datetime.datetime.strptime(last_op, "%Y-%m-%d %H:%M:%S")).total_seconds()
         if elapsed < cooldown_time:
             remain = cooldown_time - elapsed
             m, s = divmod(remain, 60)
-            return await ctx.reply(f"⏳ Còn {int(m)} phút {int(s)} giây nữa mới săn được.")
+            return await ctx.reply(f"⏳Đang bổ sung khiến thức trong {int(m)} phút {int(s)}")
 
     # --- Tính tỉ lệ thành công ---
-    killer_smart = killer.get("smart", 0)
+    oper_smart = oper.get("smart", 0)
     victim_smart = victim.get("smart", 0)
 
     base_success = 0.5  # mặc định 50%
     stolen_ratio = 0.1  # mặc định ăn 10%
 
-    if killer_smart >= victim_smart:
+    if oper_smart >= victim_smart:
         # mạnh hơn -> dễ thành công
         success_rate = min(0.8, base_success + 0.2)  # max 80%
     else:
@@ -1215,12 +1215,12 @@ async def op(ctx, member: discord.Member, creativity: str = None):
         except ValueError:
             creativity_used = 1
 
-        available = killer["items"].get("[sự sáng tạo]", 0)
+        available = oper["items"].get(":bulb: sự sáng tạo", 0)
         if available < creativity_used:
-            return await ctx.reply(f"Bạn không đủ [sự sáng tạo] (còn {available}).")
+            return await ctx.reply(f"Bạn không đủ sự sáng tạo (còn {available}).")
 
         # Trừ sáng tạo
-        killer["items"]["[sự sáng tạo]"] -= creativity_used
+        oper["items"][":bulb: sự sáng tạo"] -= creativity_used
         success_rate += 0.1 * creativity_used  # +10% mỗi cái
         success_rate = min(success_rate, 0.95)  # cap 95%
 
@@ -1231,9 +1231,9 @@ async def op(ctx, member: discord.Member, creativity: str = None):
         else:
             stolen = round(victim_smart * stolen_ratio)
             victim["smart"] -= round(stolen * 0.5)
-            killer["smart"] += stolen
-            killer["points"] += stolen
-            killer["last_rob"] = now.strftime("%Y-%m-%d %H:%M:%S")
+            oper["smart"] += stolen
+            oper["points"] += stolen
+            oper["last_rob"] = now.strftime("%Y-%m-%d %H:%M:%S")
 
             update_user(victim_id, victim)
             await ctx.reply(
@@ -1247,7 +1247,7 @@ async def op(ctx, member: discord.Member, creativity: str = None):
             f"{'(Dù đã dùng ' + str(creativity_used) + ' sáng tạo)' if creativity_used else ''}"
         )
 
-    update_user(killer_id, killer)
+    update_user(oper_id, oper)
 
 @bot.command(name="lb", help='`$lb`\n> xem bảng xếp hạng')
 async def lb(ctx, kind: str = "a"):
@@ -1368,14 +1368,14 @@ async def study(ctx):
 
     # Cooldown 5 phút
     now = datetime.datetime.now()
-    last_rob = killer.get("last_rob")
+    last_study = user_id.get("last_study")
     cooldown_time = 300  # 5 phút
-    if last_rob:
-        elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
+    if last_study:
+        elapsed = (now - datetime.datetime.strptime(last_study, "%Y-%m-%d %H:%M:%S")).total_seconds()
         if elapsed < cooldown_time:
             remain = cooldown_time - elapsed
             m, s = divmod(remain, 60)
-            await ctx.reply(f"⏳ Còn {int(m)} phút {int(s)} giây nữa mới săn được.")
+            await ctx.reply(f"⏳ Thời gian nghỉ giải lao còn {int(m)} phút {int(s)} giây")
             return
 
     # Tăng học vấn
@@ -1384,7 +1384,7 @@ async def study(ctx):
 
     # 10% cơ hội nhận "sự sáng tạo"
     if random.random() < 0.1:
-        creativity = data["items"].get("sự sáng tạo", 0)
+        creativity = data["items"].get(":bulb: sự sáng tạo", 0)
         data["items"][":bulb: sự sáng tạo"] = creativity + 1
         bonus_msg = "✨ Bạn đã nảy ra **một ý tưởng sáng tạo**!"
     else:
