@@ -1,6 +1,6 @@
 # fight.py
 from typing import Optional, List
-from .db import users_col          # hoặc import Mongo connection
+from data_handler import users_col          # hoặc import Mongo connection
 import json
 import os
 
@@ -21,10 +21,10 @@ save_shop_data = lambda data: save_json('shop_data.json', data)
 
 # ---- Define for Text Fight ----
 # Chỉ số cơ bản
-DEFAULT_HP = 100
+DEFAULT_HP = 400
 DEFAULT_ARMOR = 0      # giáp điểm (trừ thẳng damage)
-BASE_DMG_MIN = 0
-BASE_DMG_MAX = 0
+BASE_DMG_MIN = 10
+BASE_DMG_MAX = 60
 EQUIP_SLOTS = 3         # 3 ô trang bị
 
 def _find_item_key(id_or_name: str) -> Optional[str]:

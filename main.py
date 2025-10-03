@@ -35,7 +35,7 @@ client = MongoClient(MONGO_URI)
 from data_handler import (
     get_user, update_user, create_user, save_user_full,
     get_jackpot, update_jackpot as dh_update_jackpot, set_jackpot,
-    users_col
+    users_col, backgrounds_col
 )
 
 # Load hàm từ fight
@@ -399,7 +399,7 @@ async def jp(ctx):
     jackpot_amount = format_currency(get_jackpot() or 0)
     await ctx.reply(f"💰 **Jackpot hiện tại:** {jackpot_amount} {coin}")
 
-@bot.command(name="mk", help='`$mk`\n> xem cửa hàng')
+@bot.command(name="shop", help='`$shop`\n> xem cửa hàng')
 async def shop(ctx):
     if not await check_permission(ctx): return
     embed = discord.Embed(
@@ -642,8 +642,8 @@ async def bag(ctx, member: discord.Member = None):
 
     await ctx.reply(embed=embed)
 
-@bot.command(name="ou", help='`$ou <điểm> <t/x>`\n> chơi tài xỉu')
-async def ou(ctx, bet: str, choice: str):
+@bot.command(name="tx", help='`$tx <điểm> <t/x>`\n> chơi tài xỉu')
+async def tx(ctx, bet: str, choice: str):
     if not await check_permission(ctx):
         return
 
@@ -755,8 +755,8 @@ async def daily(ctx):
         f" (Thưởng streak: {streak_bonus} {coin}, chuỗi ngày: {data['streak']} ngày)"
     )
 
-@bot.command(name="prog", help='`$prog`\n> ăn xin')
-async def prog(ctx):
+@bot.command(name="beg", help='`$beg`\n> ăn xin')
+async def beg(ctx):
     if not await check_permission(ctx):
         return
 
@@ -855,7 +855,7 @@ async def help(ctx, command=None):
         else:
             await ctx.send("Lệnh không tồn tại.")
 
-@bot.command(name="thief", help='`$thief <người chơi> [công cụ]`\n> trộm 50% điểm của người khác')
+@bot.command(name="rob", help='`$rob <người chơi> [công cụ]`\n> trộm 50% điểm của người khác')
 async def rob(ctx, member: discord.Member, tool: str = None):
     if not await check_permission(ctx):
         return
@@ -1072,7 +1072,7 @@ async def withdraw(ctx, amount: int):
 
     await ctx.reply(f"Bạn đã rút {format_currency(amount)} {coin} từ công ty.")
 
-@bot.command(name="othief", help='`$othief <người chơi>`\n> rút tiền từ công ty thằng bạn')
+@bot.command(name="orob", help='`$orob <người chơi>`\n> rút tiền từ công ty thằng bạn')
 async def orob(ctx, member: discord.Member):
     if not await check_permission(ctx):
         return
@@ -1212,11 +1212,6 @@ async def op(ctx, member: discord.Member):
         killer['items'][':bulb: Thông minh'] -= 1
         update_user(killer_id, killer)
         await ctx.reply(f"Bạn đã sử dụng sự thông minh để ao trình {member.name} nhưng không thành công.")
-
-@bot.command(name="ping", help='`$ping`\n> xem độ trễ của bot')
-async def ping(ctx):
-    latency = bot.latency
-    await ctx.reply(f'Ping : {latency * 1000:.2f}ms.')
 
 @bot.command(name="lb", help='`$lb`\n> xem bảng xếp hạng')
 async def lb(ctx, kind: str = "a"):
