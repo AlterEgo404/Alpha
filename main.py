@@ -42,7 +42,7 @@ from data_handler import (
 from fight import (
     _find_item_key, _get_equips, _set_equips, _get_curr_hp, _set_curr_hp,
     _user_inventory_count, _gear_bonuses, _aggregate_bonuses,
-    _effective_stats, _clamp_hp_to_max, _item_display, check_player_life
+    _effective_stats, _clamp_hp_to_max, _item_display, check_player_dead
 )
 
 # ---- Discord ----
