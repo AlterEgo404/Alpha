@@ -387,10 +387,6 @@ async def start(ctx):
 
 @bot.command(name="info", help='`$info`\n> xem thông tin của Bot')
 async def info(ctx):
-<<<<<<< HEAD
-=======
-    if not await check_permission(ctx, user_id): return
->>>>>>> 0269ddb9a143a8cc31bcdd26356d19b4833314d4
     embed = discord.Embed(title="📊 Thông tin Bot", color=discord.Color.red())
     embed.add_field(name="👩‍💻 Nhà phát triển", value="```ansi\n[2;31mAlpha[0m```", inline=True)
     embed.add_field(name="Phiên bản Bot", value="```ansi\n[2;34m2.0.0[0m```")
@@ -399,19 +395,11 @@ async def info(ctx):
 
 @bot.command(name="jar", help='`$jar`\n> xem hũ jackpot')
 async def jp(ctx):
-<<<<<<< HEAD
-=======
-    if not await check_permission(ctx, user_id): return
->>>>>>> 0269ddb9a143a8cc31bcdd26356d19b4833314d4
     jackpot_amount = format_currency(get_jackpot() or 0)
     await ctx.reply(f"💰 **Jackpot hiện tại:** {jackpot_amount} {coin}")
 
 @bot.command(name="shop", help='`$shop`\n> xem cửa hàng')
 async def shop(ctx):
-<<<<<<< HEAD
-=======
-    if not await check_permission(ctx, user_id): return
->>>>>>> 0269ddb9a143a8cc31bcdd26356d19b4833314d4
     embed = discord.Embed(
         title="🏬 **Cửa hàng**",
         description="Mua: `$buy <id> <số lượng>` • Bán: `$sell <id> <số lượng>`",
@@ -539,12 +527,7 @@ async def set_background(ctx, member: discord.Member, background_url: str):
 
 @bot.command(name="cccd", help='`$cccd`\n> mở căn cước công dân')
 async def cccd(ctx, member: discord.Member = None, size: int = 128):
-<<<<<<< HEAD
     member = member or ctx.author
-=======
-
-    member = member or ctx.author
->>>>>>> 0269ddb9a143a8cc31bcdd26356d19b4833314d4
     user_id = str(member.id)
 
     if not await check_permission(ctx, user_id):
