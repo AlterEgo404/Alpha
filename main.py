@@ -42,7 +42,7 @@ from data_handler import (
 from fight import (
     _find_item_key, _get_equips, _set_equips, _get_curr_hp, _set_curr_hp,
     _user_inventory_count, _gear_bonuses, _aggregate_bonuses,
-    _effective_stats, _clamp_hp_to_max, _item_display
+    _effective_stats, _clamp_hp_to_max, _item_display, check_player_life
 )
 
 # ---- Discord ----
@@ -214,16 +214,22 @@ async def _ensure_server_img():
             _SERVER_IMG_CACHE = None
 
 # ---- Permissions & user checks ----
-async def check_permission(ctx):
+async def check_permission(ctx, user_id):
+    # Chỉ cho phép sử dụng trong kênh cụ thể
     if ctx.author.id != 1196335145964285984 and ctx.channel.id != ALLOWED_CHANNEL_ID:
-        await ctx.reply(f"Lệnh này chỉ có thể được sử dụng trong <#{ALLOWED_CHANNEL_ID} >")
+        await ctx.reply(f"Lệnh này chỉ có thể được sử dụng trong <#{ALLOWED_CHANNEL_ID}>")
         return False
-    return True
-
-async def check_user_data(ctx, user_id):
+    
     if not get_user(user_id):
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
         return False
+
+    # Kiểm tra trạng thái sinh tồn
+    alive, msg = check_player_life(str(ctx.author.id))
+    if not alive:
+        await ctx.reply(msg)
+        return False
+
     return True
 
 # ---- HTTP session (reused) ----
@@ -415,10 +421,9 @@ async def shop(ctx):
 
 @bot.command(name="buy")
 async def buy(ctx, item_id: str, quantity: int):
-    if not await check_permission(ctx): return
     user_id = str(ctx.author.id)
+    if not await check_permission(ctx): return
 
-    if not await check_user_data(ctx, user_id): return
     if item_id not in shop_data:
         await ctx.reply("Không tìm thấy mặt hàng trong cửa hàng.")
         return
@@ -452,10 +457,9 @@ async def buy(ctx, item_id: str, quantity: int):
 
 @bot.command(name="sell")
 async def sell(ctx, item_id: str, quantity: int):
-    if not await check_permission(ctx): return
     user_id = str(ctx.author.id)
+    if not await check_permission(ctx): return
 
-    if not await check_user_data(ctx, user_id): return
     if item_id not in shop_data:
         await ctx.reply("Không thấy mặt hàng này trong cửa hàng.")
         return
@@ -526,12 +530,10 @@ async def set_background(ctx, member: discord.Member, background_url: str):
 
 @bot.command(name="cccd", help='`$cccd`\n> mở căn cước công dân')
 async def cccd(ctx, member: discord.Member = None, size: int = 128):
+    user_id = str(member.id)
     if not await check_permission(ctx):
         return
     member = member or ctx.author
-    user_id = str(member.id)
-    if not await check_user_data(ctx, user_id):
-        return
 
     # ===== DB & chỉ số học vấn =====
     data = get_user(user_id) or {}
@@ -601,13 +603,11 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
 
 @bot.command(name="bag", help='`$bag`\n> mở túi')
 async def bag(ctx, member: discord.Member = None):
-    if not await check_permission(ctx):
-        return
-
+    
     member = member or ctx.author
     user_id = str(member.id)
-
-    if not await check_user_data(ctx, user_id):
+    
+    if not await check_permission(ctx):
         return
 
     # Lấy dữ liệu người dùng từ MongoDB

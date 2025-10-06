@@ -1,8 +1,9 @@
 # fight.py
 from typing import Optional, List
-from data_handler import users_col          # hoặc import Mongo connection
+from data_handler import users_col, get_user, update_user       # hoặc import Mongo connection
 import json
 import os
+import datetime
 
 def load_json(file_name, default_data=None):
     if not os.path.exists(file_name):
@@ -135,3 +136,38 @@ def _item_display(item_key: Optional[str]) -> str:
     icon = data.get("icon", "")
     name = data.get("name", item_key)
     return f"{icon} {name}".strip()
+
+def check_player_life(user_id: str):
+    """Kiểm tra máu người chơi, nếu <= 0 thì khóa trong 12h."""
+    data = get_user(user_id)
+    if not data:
+        return False, "Người chơi chưa có dữ liệu."
+
+    # Nếu máu <= 0
+    if data.get("life", 0) <= 0:
+        now = datetime.datetime.now()
+        dead_until_str = data.get("dead_until")
+
+        if not dead_until_str:
+            # Lần đầu chết → đặt thời gian hồi sinh sau 12h
+            revive_time = now + datetime.timedelta(hours=12)
+            data["dead_until"] = revive_time.strftime("%Y-%m-%d %H:%M:%S")
+            update_user(user_id, data)
+            return False, f"💀 Bạn đã chết! Hãy đợi 12 tiếng để hồi sinh (đến {revive_time.strftime('%H:%M %d/%m/%Y')})."
+
+        else:
+            # Kiểm tra thời gian hồi sinh
+            dead_until = datetime.datetime.strptime(dead_until_str, "%Y-%m-%d %H:%M:%S")
+            if now < dead_until:
+                remain = dead_until - now
+                h, m = divmod(remain.seconds, 3600)
+                m //= 60
+                return False, f"💀 Bạn vẫn đang chết! Còn khoảng {h}h {m}m để hồi sinh."
+            else:
+                # Đủ 12h -> hồi sinh
+                data["life"] = data.get("max_life", 100)
+                data["dead_until"] = None
+                update_user(user_id, data)
+                return True, "✨ Bạn đã hồi sinh và có thể chơi lại!"
+
+    return True, None
