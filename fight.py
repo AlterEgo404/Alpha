@@ -137,37 +137,59 @@ def _item_display(item_key: Optional[str]) -> str:
     name = data.get("name", item_key)
     return f"{icon} {name}".strip()
 
-def check_player_life(user_id: str):
-    """Kiểm tra máu người chơi, nếu <= 0 thì khóa trong 12h."""
+def check_player_dead(user_id: str):
+    """
+    Kiểm tra trạng thái sống/chết của người chơi.
+    - Nếu fight_hp > 0: sống, return (True, None)
+    - Nếu fight_hp <= 0 và chưa có dead_until: đánh dấu chết trong 1h
+    - Nếu dead_until còn hạn: khóa toàn bộ lệnh
+    - Nếu hết hạn: hồi sinh (đầy máu)
+    Trả về: (alive: bool, message: Optional[str])
+    """
     data = get_user(user_id)
     if not data:
-        return False, "Người chơi chưa có dữ liệu."
+        return True, None  # chưa có dữ liệu → cho qua
+
+    hp = int(data.get("fight_hp", 0))
+    now = datetime.now()
+
+    # Nếu còn máu thì được dùng lệnh
+    if hp > 0:
+        return True, None
 
     # Nếu máu <= 0
-    if data.get("life", 0) <= 0:
-        now = datetime.datetime.now()
-        dead_until_str = data.get("dead_until")
+    dead_until = data.get("dead_until")
 
-        if not dead_until_str:
-            # Lần đầu chết → đặt thời gian hồi sinh sau 1h
-            revive_time = now + datetime.timedelta(hours=1)
-            data["dead_until"] = revive_time.strftime("%Y-%m-%d %H:%M:%S")
+    # Nếu đã có thời gian chết trong DB
+    if dead_until:
+        try:
+            dead_until_dt = datetime.strptime(str(dead_until), "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            # Nếu format lạ -> reset lại
+            dead_until_dt = now + timedelta(hours=1)
+            data["dead_until"] = dead_until_dt.strftime("%Y-%m-%d %H:%M:%S")
             update_user(user_id, data)
-            return False, f"💀 Bạn đã chết! Hãy đợi 1 tiếng để hồi sinh (đến {revive_time.strftime('%H:%M %d/%m/%Y')})."
+            return False, f"💀 Bạn vừa gục và phải chờ 1 giờ để hồi sinh (đến {data['dead_until']})."
 
+        # Nếu vẫn đang trong thời gian án tử
+        if now < dead_until_dt:
+            remain = dead_until_dt - now
+            m, s = divmod(int(remain.total_seconds()), 60)
+            h, m = divmod(m, 60)
+            msg = f"💀 Bạn đã chết! Hãy chờ {h} giờ {m} phút để hồi sinh."
+            return False, msg
         else:
-            # Kiểm tra thời gian hồi sinh
-            dead_until = datetime.datetime.strptime(dead_until_str, "%Y-%m-%d %H:%M:%S")
-            if now < dead_until:
-                remain = dead_until - now
-                h, m = divmod(remain.seconds, 3600)
-                m //= 60
-                return False, f"💀 Bạn vẫn đang chết! Còn khoảng {h}h {m}m để hồi sinh."
-            else:
-                # Đủ 1h -> hồi sinh
-                data["life"] = data.get("max_life", 100)
-                data["dead_until"] = None
-                update_user(user_id, data)
-                return True, "✨ Bạn đã hồi sinh và có thể chơi lại!"
-
-    return True, None
+            # Đã hết án tử → hồi sinh
+            max_hp = data.get("max_life", 100)
+            data["fight_hp"] = int(max_hp)
+            data["dead_until"] = None
+            update_user(user_id, data)
+            return True, "✨ Bạn đã hồi sinh và có thể chiến đấu tiếp!"
+    else:
+        # Chưa có dead_until → người chơi vừa chết
+        new_dead = now + timedelta(hours=1)
+        data["dead_until"] = new_dead.strftime("%Y-%m-%d %H:%M:%S")
+        data["fight_hp"] = 0
+        update_user(user_id, data)
+        msg = f"💀 Bạn vừa gục và sẽ phải chờ 1 giờ để hồi sinh (đến {data['dead_until']})."
+        return False, msg
