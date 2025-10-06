@@ -149,11 +149,11 @@ def check_player_life(user_id: str):
         dead_until_str = data.get("dead_until")
 
         if not dead_until_str:
-            # Lần đầu chết → đặt thời gian hồi sinh sau 12h
-            revive_time = now + datetime.timedelta(hours=12)
+            # Lần đầu chết → đặt thời gian hồi sinh sau 1h
+            revive_time = now + datetime.timedelta(hours=1)
             data["dead_until"] = revive_time.strftime("%Y-%m-%d %H:%M:%S")
             update_user(user_id, data)
-            return False, f"💀 Bạn đã chết! Hãy đợi 12 tiếng để hồi sinh (đến {revive_time.strftime('%H:%M %d/%m/%Y')})."
+            return False, f"💀 Bạn đã chết! Hãy đợi 1 tiếng để hồi sinh (đến {revive_time.strftime('%H:%M %d/%m/%Y')})."
 
         else:
             # Kiểm tra thời gian hồi sinh
@@ -164,7 +164,7 @@ def check_player_life(user_id: str):
                 m //= 60
                 return False, f"💀 Bạn vẫn đang chết! Còn khoảng {h}h {m}m để hồi sinh."
             else:
-                # Đủ 12h -> hồi sinh
+                # Đủ 1h -> hồi sinh
                 data["life"] = data.get("max_life", 100)
                 data["dead_until"] = None
                 update_user(user_id, data)
