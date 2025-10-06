@@ -224,12 +224,6 @@ async def check_permission(ctx, user_id):
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
         return False
 
-    # Kiểm tra trạng thái sinh tồn
-    alive, msg = check_player_life(str(ctx.author.id))
-    if not alive:
-        await ctx.reply(msg)
-        return False
-
     return True
 
 # ---- HTTP session (reused) ----
