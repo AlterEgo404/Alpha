@@ -638,12 +638,6 @@ async def bag(ctx, member: discord.Member = None):
 @bot.command(name="tx", help='`$tx <điểm> <t/x>`\n> chơi tài xỉu')
 async def tx(ctx, bet: str, choice: str):
     try:
-<<<<<<< HEAD
-=======
-        if not await check_permission(ctx, user_id):
-            return
-
->>>>>>> 0269ddb9a143a8cc31bcdd26356d19b4833314d4
         user_id = str(ctx.author.id)
 
         if not await check_permission(ctx, user_id):
@@ -794,25 +788,10 @@ async def daily(ctx):
 
 @bot.command(name="beg", help='`$beg`\n> ăn xin')
 async def beg(ctx):
-<<<<<<< HEAD
-=======
-
->>>>>>> 0269ddb9a143a8cc31bcdd26356d19b4833314d4
     user_id = str(ctx.author.id)
     data = get_user(user_id)
 
-<<<<<<< HEAD
     if not await check_permission(ctx, user_id):
-        return
-
-
-=======
-    if not await check_permission(ctx, user_id):
-        return
-
->>>>>>> 0269ddb9a143a8cc31bcdd26356d19b4833314d4
-    if not data:
-        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
         return
 
     last_beg = data.get('last_beg')
@@ -848,9 +827,6 @@ async def give(ctx, amount: int, member: discord.Member):
 
     giver_data = get_user(giver_id)
     receiver_data = get_user(receiver_id)
-
-    if not await check_permission(ctx, user_id):
-        return
 
     if not giver_data:
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
@@ -913,9 +889,6 @@ async def rob(ctx, member: discord.Member, tool: str = None):
 
     robber_data = get_user(robber_id)
     victim_data = get_user(victim_id)
-
-    if not await check_permission(ctx, user_id):
-        return
 
     if not robber_data:
         await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo.")
@@ -1013,10 +986,6 @@ async def hunt(ctx, weapon: str):
     if not await check_permission(ctx, user_id):
         return
 
-    if not data:
-        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo.")
-        return
-
     weapons = {
         "g": { "emoji": ":gun: Súng săn", "ammo": 1, "range": (0, 50000) },
         "r": { "emoji": "<:RPG:1325750069189677087> RPG", "ammo": 10, "range": (-2000000, 5000000) },
@@ -1074,10 +1043,6 @@ async def invest(ctx, amount: int):
     if not await check_permission(ctx, user_id):
         return
 
-    if user is None:
-        await ctx.reply("Người chơi không tồn tại.")
-        return
-
     if ':office: Công ty' not in user.get('items', {}):
         await ctx.reply(f"{ctx.author.mention} Bạn làm đéo gì có :office: Công ty mà đầu tư :rofl:")
         return
@@ -1106,10 +1071,6 @@ async def withdraw(ctx, amount: int):
     if not await check_permission(ctx, user_id):
         return
 
-    if user is None:
-        await ctx.reply("Người chơi không tồn tại.")
-        return
-
     if amount <= 0:
         await ctx.reply("Số điểm phải lớn hơn 0.")
         return
@@ -1134,9 +1095,6 @@ async def orob(ctx, member: discord.Member):
 
     orobber = get_user(orobber_id)
     victim = get_user(victim_id)
-
-    if not await check_permission(ctx, user_id):
-        return
 
     if orobber is None:
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
@@ -1203,9 +1161,6 @@ async def op(ctx, member: discord.Member, creativity: str = None):
 
     oper = get_user(oper_id)
     victim = get_user(victim_id)
-
-    if not await check_permission(ctx, user_id):
-        return
 
     if oper is None:
         return await ctx.reply("Bạn chưa có tài khoản, vui lòng dùng $start trước.")
@@ -1285,8 +1240,6 @@ async def op(ctx, member: discord.Member, creativity: str = None):
 
 @bot.command(name="lb", help='`$lb`\n> xem bảng xếp hạng')
 async def lb(ctx, kind: str = "a"):
-    if not await check_permission(ctx):
-        return
 
     kind_map = {
         "a": ("points", "🏦 Tài khoản"),
@@ -1325,13 +1278,11 @@ async def lb(ctx, kind: str = "a"):
 
 @bot.command(name='gacha', help='`$gacha`\n> gacha ra những thứ hay ho')
 async def gacha(ctx):
+
     user_id = str(ctx.author.id)
     user_roles = [role.name for role in ctx.author.roles]
-
-    if not await check_permission(ctx, user_id):
-        return
-
     user = users_col.find_one({"_id": user_id})
+
     if not user:
         await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để bắt đầu.")
         return
@@ -1441,21 +1392,11 @@ async def study(ctx):
 # ===== Commands for Text Fight =====
 @bot.command(name="attack", help="`$attack @user` → tấn công người chơi")
 async def attack(ctx: commands.Context, target: discord.Member):
+
     attacker_id = str(ctx.author.id)
     target_id = str(target.id)
 
-    if not await check_permission(ctx, user_id):
-        return
-
-    # 1) Kiểm tra bot/tự đánh
-    if target.bot:
-        await ctx.reply("❌ Không thể tấn công bot.")
-        return
-    if target_id == attacker_id:
-        await ctx.reply("❌ Không thể tự tấn công chính mình.")
-        return
-
-    # 2) Chỉ tấn công người có tài khoản (và attacker cũng phải có)
+    # 1) Chỉ tấn công người có tài khoản (và attacker cũng phải có)
     attacker_doc = get_user(attacker_id)
     if not attacker_doc:
         await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
@@ -1463,6 +1404,14 @@ async def attack(ctx: commands.Context, target: discord.Member):
     target_doc = get_user(target_id)
     if not target_doc:
         await ctx.reply("❌ Người chơi này chưa có tài khoản. Bảo họ dùng `$start` trước nhé!")
+        return
+
+    # 2) Kiểm tra bot/tự đánh
+    if target.bot:
+        await ctx.reply("❌ Không thể tấn công bot.")
+        return
+    if target_id == attacker_id:
+        await ctx.reply("❌ Không thể tự tấn công chính mình.")
         return
 
     # 3) Tính sát thương (giáp là điểm, trừ thẳng)
@@ -1493,9 +1442,6 @@ async def gear(ctx: commands.Context, member: Optional[discord.Member] = None):
     member = member or ctx.author
     user_id = str(member.id)
 
-    if not await check_permission(ctx, user_id):
-        return
-
     # Yêu cầu có tài khoản (cả khi xem người khác)
     if not get_user(user_id):
         if member.id == ctx.author.id:
@@ -1521,9 +1467,6 @@ async def gear(ctx: commands.Context, member: Optional[discord.Member] = None):
 @bot.command(name="equip", help="`$equip <item_id_hoặc_tên> [ô]` → đeo vào ô trống đầu, hoặc ô 1–3 nếu chỉ định")
 async def equip(ctx: commands.Context, item_id_or_name: str, slot: Optional[int] = None):
     user_id = str(ctx.author.id)
-
-    if not await check_permission(ctx, user_id):
-        return
 
     # Cần có tài khoản
     if not get_user(user_id):
@@ -1575,9 +1518,6 @@ async def equip(ctx: commands.Context, item_id_or_name: str, slot: Optional[int]
 @bot.command(name="unequip", help="`$unequip <ô>` → tháo trang bị ở ô 1–3")
 async def unequip(ctx: commands.Context, slot: int):
     user_id = str(ctx.author.id)
-
-    if not await check_permission(ctx, user_id):
-        return
 
     # Cần có tài khoản
     if not get_user(user_id):
