@@ -655,7 +655,7 @@ async def tx(ctx, bet: str, choice: str):
             await ctx.reply("Bạn chưa có tài khoản, dùng `$start` để bắt đầu.")
             return
 
-        # Xử lý bet
+        # Xử lý tiền cược
         if bet.lower() == "all":
             bet_val = int(data.get("points", 0))
         else:
@@ -669,36 +669,52 @@ async def tx(ctx, bet: str, choice: str):
             await ctx.reply("Bạn không đủ tiền để cược.")
             return
 
-        # Check lựa chọn
+        # Kiểm tra lựa chọn
         choice = choice.lower()
         if choice not in ["t", "x"]:
             await ctx.reply("Bạn phải chọn 't' (Tài) hoặc 'x' (Xỉu).")
             return
 
-        # Gieo xúc xắc
-        dice1, dice2, dice3 = random.randint(1,6), random.randint(1,6), random.randint(1,6)
+        # ===== Gieo xúc xắc =====
+        dice1, dice2, dice3 = random.randint(1, 6), random.randint(1, 6), random.randint(1, 6)
         total = dice1 + dice2 + dice3
 
-        # ===== TÍNH KẾT QUẢ =====
+        # ===== KẾT QUẢ =====
         jackpot_won = False
+        lose_protected = False
+        win = (3 <= total <= 10 and choice == "x") or (11 <= total <= 18 and choice == "t")
+
         if bet_val * 100 >= jackpot_amount and total in (3, 18) and jackpot_amount > 0:
             # Ăn jackpot
             data["points"] += jackpot_amount
             set_jackpot(0)
             jackpot_won = True
+
+        elif win:
+            # Thắng
+            data["points"] += bet_val
+
         else:
-            win = (3 <= total <= 10 and choice == "x") or (11 <= total <= 18 and choice == "t")
-            if win:
-                data["points"] += bet_val
+            # Thua — kiểm tra vật phẩm miễn thua
+            items = data.get("items", {})
+            mooncake_count = items.get(":moon_cake: Đậu xanh", 0)
+
+            if mooncake_count > 0:
+                lose_protected = True
+                items[":moon_cake: Đậu xanh"] = mooncake_count - 1
+                data["items"] = items
             else:
+                # Không có vật phẩm => mất tiền + góp jackpot
                 data["points"] -= bet_val
                 update_jackpot(bet_val)
 
-        # Cập nhật DB
+        # ===== Cập nhật DB =====
         update_user(user_id, data)
 
-        # ===== HIỂN THỊ ANIMATION =====
-        def _emoji(i): return dice_emojis.get(i, str(i))
+        # ===== Animation xúc xắc =====
+        def _emoji(i):
+            return dice_emojis.get(i, str(i))
+
         dice1_emoji, dice2_emoji, dice3_emoji = _emoji(dice1), _emoji(dice2), _emoji(dice3)
         dice_roll = _emoji(0)
 
@@ -706,25 +722,31 @@ async def tx(ctx, bet: str, choice: str):
             rolling_message = await ctx.reply(f"`   ` {dice_roll} `   `\n`  `{dice_roll} {dice_roll}`$$`")
         else:
             rolling_message = await ctx.reply(f"`   ` {dice_roll} `   `\n`$$`{dice_roll} {dice_roll}`  `")
+
         await asyncio.sleep(1)
 
-        # ===== KẾT QUẢ SAU ANIMATION =====
+        # ===== Hiển thị kết quả =====
         jackpot_text = f"\n🎉 Bạn ăn JACKPOT **{jackpot_display}**!" if jackpot_won else ""
+        protection_text = "\nBạn đã đổi :moon_cake: đậu xanh để hoàn lại tiền thua" if lose_protected else ""
 
         if 3 <= total <= 10:  # Xỉu
             if choice == "x":
-                await rolling_message.edit(content=f"`   ` {dice1_emoji} `Xỉu`\n`  `{dice2_emoji} {dice3_emoji}`$$`{jackpot_text}")
+                await rolling_message.edit(
+                    content=f"`   ` {dice1_emoji} `Xỉu`\n`  `{dice2_emoji} {dice3_emoji}`$$`{jackpot_text}{protection_text}"
+                )
             else:
                 await rolling_message.edit(
-                    content=f"`   ` {dice1_emoji} `Xỉu`\n`$$`{dice2_emoji} {dice3_emoji}`  `\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:{jackpot_text}"
+                    content=f"`   ` {dice1_emoji} `Xỉu`\n`$$`{dice2_emoji} {dice3_emoji}`  `\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:{jackpot_text}{protection_text}"
                 )
         else:  # Tài
             if choice == "x":
                 await rolling_message.edit(
-                    content=f"`Tài` {dice1_emoji} `   `\n`  `{dice2_emoji} {dice3_emoji}`$$`\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:{jackpot_text}"
+                    content=f"`Tài` {dice1_emoji} `   `\n`  `{dice2_emoji} {dice3_emoji}`$$`\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:{jackpot_text}{protection_text}"
                 )
             else:
-                await rolling_message.edit(content=f"`Tài` {dice1_emoji} `   `\n`$$`{dice2_emoji} {dice3_emoji}`  `{jackpot_text}")
+                await rolling_message.edit(
+                    content=f"`Tài` {dice1_emoji} `   `\n`$$`{dice2_emoji} {dice3_emoji}`  `{jackpot_text}{protection_text}"
+                )
 
     except Exception as e:
         await ctx.reply(f"Đã xảy ra lỗi: {e}")
