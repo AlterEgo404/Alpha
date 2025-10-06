@@ -219,19 +219,17 @@ async def check_permission(ctx, user_id):
     if ctx.author.id != 1196335145964285984 and ctx.channel.id != ALLOWED_CHANNEL_ID:
         await ctx.reply(f"Lệnh này chỉ có thể được sử dụng trong <#{ALLOWED_CHANNEL_ID}>")
         return False
-        
+
+    if not get_user(user_id):
+        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
+        return False
+
     # Kiểm tra trạng thái sinh tồn
     alive, msg = check_player_life(str(ctx.author.id))
     if not alive:
         await ctx.reply(msg)
         return False
 
-    return True
-
-async def check_user_data(ctx, user_id):
-    if not get_user(user_id):
-        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
-        return False
     return True
     
 # ---- HTTP session (reused) ----
