@@ -359,6 +359,7 @@ async def on_close():
 
 @bot.command(name="start", help='`$start`\n> Khởi tạo tài khoản')
 async def start(ctx):
+
     user_id = str(ctx.author.id)
     member = ctx.author
 
@@ -412,8 +413,11 @@ async def shop(ctx):
 
 @bot.command(name="buy")
 async def buy(ctx, item_id: str, quantity: int):
+
     user_id = str(ctx.author.id)
-    if not await check_permission(ctx, user_id): return
+
+    if not await check_permission(ctx, user_id):
+        return
 
     if item_id not in shop_data:
         await ctx.reply("Không tìm thấy mặt hàng trong cửa hàng.")
@@ -448,8 +452,11 @@ async def buy(ctx, item_id: str, quantity: int):
 
 @bot.command(name="sell")
 async def sell(ctx, item_id: str, quantity: int):
+
     user_id = str(ctx.author.id)
-    if not await check_permission(ctx, user_id): return
+
+    if not await check_permission(ctx, user_id):
+        return
 
     if item_id not in shop_data:
         await ctx.reply("Không thấy mặt hàng này trong cửa hàng.")
@@ -502,7 +509,7 @@ async def ttsp(ctx, item_id):
 
 @bot.command(name="setb")
 async def set_background(ctx, member: discord.Member, background_url: str):
-    # Chỉ bạn mới dùng được
+
     if ctx.author.id != 1361702060071850024:
         await ctx.reply("Chỉ người dùng được phép mới có thể sử dụng lệnh này.")
         return
@@ -521,6 +528,7 @@ async def set_background(ctx, member: discord.Member, background_url: str):
 
 @bot.command(name="cccd", help='`$cccd`\n> mở căn cước công dân')
 async def cccd(ctx, member: discord.Member = None, size: int = 128):
+
     member = member or ctx.author
     user_id = str(member.id)
 
@@ -633,6 +641,7 @@ async def bag(ctx, member: discord.Member = None):
 async def tx(ctx, bet: str, choice: str):
     try:
         user_id = str(ctx.author.id)
+        data = get_user(user_id)
 
         if not await check_permission(ctx, user_id):
             return
@@ -741,6 +750,7 @@ async def tx(ctx, bet: str, choice: str):
 async def daily(ctx):
 
     user_id = str(ctx.author.id)
+    data = get_user(user_id)
 
     if not await check_permission(ctx, user_id):
         return
@@ -782,6 +792,7 @@ async def daily(ctx):
 
 @bot.command(name="beg", help='`$beg`\n> ăn xin')
 async def beg(ctx):
+
     user_id = str(ctx.author.id)
     data = get_user(user_id)
 
@@ -1031,6 +1042,7 @@ async def hunt(ctx, weapon: str):
 
 @bot.command(name="in", help='`$in <số điểm>`\n> bơm tiền vào công ty')
 async def invest(ctx, amount: int):
+
     user_id = str(ctx.author.id)
     user = get_user(user_id)
 
@@ -1150,6 +1162,7 @@ async def orob(ctx, member: discord.Member):
 
 @bot.command(name="op", help='`$op <người chơi> [st<số>]`\n> săn smart, có thể dùng sáng tạo để tăng tỉ lệ')
 async def op(ctx, member: discord.Member, creativity: str = None):
+
     oper_id = str(ctx.author.id)
     victim_id = str(member.id)
 
@@ -1336,6 +1349,7 @@ async def gacha(ctx):
 
 @bot.command(name='study', help='`$study`\n> Học tăng trình độ')
 async def study(ctx):
+    
     user_id = str(ctx.author.id)
     data = get_user(user_id)
 
