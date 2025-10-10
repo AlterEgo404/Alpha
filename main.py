@@ -41,7 +41,7 @@ from data_handler import (
 # Load hàm từ fight
 from fight import (
     _get_equips, _set_equips, _gear_bonuses, _aggregate_bonuses, 
-    _item_display, handle_death, get_full_stats
+    _item_display, handle_death, get_full_stats, format_stats_display
 )
 
 # ---- Discord ----
