@@ -1444,6 +1444,10 @@ async def stats(ctx, member: discord.Member = None):
         f"**HP:** {hp} <:Health:1426153576249430079>\n"
         f"**Mana:** {mana} <:Mana:1426153608361279558>\n"
         f"{equip_line}\n\n"
+        f"{AD}            {AP}            {Armor}            {MR}            {AS}"
+        f"{ad}            {ap}            {armor}            {magic_resist}            {attack_speed}"
+        f"{CC}            {CD}            {SV}            {DA}            {DR}"
+        f"{crit_rate}%            {crit_damage}%            {lifesteal}%            {amplify}%            {resistance}%"
     )
 
     # --- Embed hiển thị ---
