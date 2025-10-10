@@ -1401,7 +1401,7 @@ async def study(ctx):
     await ctx.send(f"📖 Bạn học hành chăm chỉ và nhận được **+{gain} học vấn**! {bonus_msg}")
 
 # === Text fight ===
-@commands.command(name="stats", help="Hiển thị chỉ số chiến đấu của bạn hoặc người khác.")
+@bot.command(name="stats", help="Hiển thị chỉ số chiến đấu của bạn hoặc người khác.")
 async def stats(ctx, member: discord.Member = None):
     """Hiển thị thông tin Text Fight dưới dạng embed."""
     member = member or ctx.author
