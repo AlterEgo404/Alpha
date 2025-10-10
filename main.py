@@ -1455,24 +1455,62 @@ async def stats(ctx, member: discord.Member = None):
     )
     # Hàng chỉ số chính
     embed.add_field(
-        name="Chỉ số cơ bản",
         value=(
             f"**AD**\n{ad}"
+        ),
+        inline=False
+    )
+    embed.add_field(
+        value=(
             f"**AP:**\n{ap}"
+        ),
+        inline=False
+    )
+    embed.add_field(
+        value=(
             f"**Giáp:**\n{armor}"
+        ),
+        inline=False
+    )
+    embed.add_field(
+        value=(
             f"**Kháng phép:**\n{magic_resist}"
+        ),
+        inline=False
+    )
+    embed.add_field(
+        value=(
             f"**AS:**\n{attack_speed}"
         ),
         inline=False
     )
     # Hàng chỉ số đặc biệt
     embed.add_field(
-        name="Chỉ số đặc biệt",
         value=(
             f"**Tỉ lệ Crit:**\n{crit_rate}%"
+        ),
+        inline=False
+    )
+    embed.add_field(
+        value=(
             f"**ST Crit:**\n{crit_damage}%"
+        ),
+        inline=False
+    )
+    embed.add_field(
+        value=(
             f"**Hút máu:**\n{lifesteal}%"
+        ),
+        inline=False
+    )
+    embed.add_field(
+        value=(
             f"**Khuếch đại:**\n{amplify}%"
+        ),
+        inline=False
+    )
+    embed.add_field(
+        value=(
             f"**Chống chịu:**\n{resistance}%"
         ),
         inline=False
