@@ -993,9 +993,8 @@ async def hunt(ctx, weapon: str):
 
     weapons = {
         "g": { "emoji": ":gun: Súng săn", "ammo": 1, "range": (0, 50000) },
-        "r": { "emoji": "<:RPG:1325750069189677087> RPG", "ammo": 10, "range": (-2000000, 5000000) },
-        "a": { "emoji": "<:Awm:1325747265045794857> Awm", "ammo": 1, "range": (5000, 1000000) },
-        "c": { "emoji": "<:cleaner:1347560866291257385> máy hút bụi", "ammo": 0, "range": (3000000, 10000000) }
+        "r": { "emoji": "<:RPG:1413753013473906748> RPG", "ammo": 10, "range": (-2000000, 5000000) },
+        "a": { "emoji": "<:AWM:1413753446846431282> Awm", "ammo": 1, "range": (5000, 1000000) }
     }
 
     if weapon not in weapons:
