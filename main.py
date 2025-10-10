@@ -1445,8 +1445,15 @@ async def stats(ctx, member: discord.Member = None):
         description=stats_text,
         color=discord.Color.red()
     )
+    embed.add_field(
+        name = f"<:AD:1426154602335698974>",
+        value = f"{ad}"
+    )
+    embed.add_field(
+        name = f"<:AP:1426153499766427679>",
+        value = f"{ap}"
+    )
     embed.set_thumbnail(url=member.display_avatar.url)
-    embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}")
 
     await ctx.send(embed=embed)
 
