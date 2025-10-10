@@ -40,7 +40,8 @@ from data_handler import (
 
 # Load hàm từ fight
 from fight import (
-    _get_equips, _set_equips, _gear_bonuses, _aggregate_bonuses, _item_display, handle_death
+    _get_equips, _set_equips, _gear_bonuses, _aggregate_bonuses, 
+    _item_display, handle_death, get_full_stats
 )
 
 # ---- Discord ----
@@ -1398,6 +1399,40 @@ async def study(ctx):
     update_user(user_id, data)
 
     await ctx.send(f"📖 Bạn học hành chăm chỉ và nhận được **+{gain} học vấn**! {bonus_msg}")
+
+# === Text fight ===
+@commands.command(name="stats", help="Hiển thị chỉ số chiến đấu của bạn hoặc người khác.")
+async def stats(ctx, member: discord.Member = None):
+    """Hiển thị thông tin Text Fight dưới dạng embed."""
+    member = member or ctx.author
+    user_id = str(member.id)
+
+    # --- Lấy chỉ số tổng hợp ---
+    try:
+        tf = get_full_stats(user_id)
+    except Exception as e:
+        await ctx.send(f"❌ Không thể lấy dữ liệu Text Fight: {e}")
+        return
+
+    # --- Hiển thị trang bị ---
+    equip_display = []
+    for i, item_key in enumerate(tf.get("equips", [])):
+        equip_display.append(f"Slot {i+1}: {_item_display(item_key)}")
+    equip_text = "\n".join(equip_display) if equip_display else "*(Không có trang bị)*"
+
+    # --- Format chỉ số ---
+    stats_text = format_stats_display(tf)
+
+    # --- Tạo embed đẹp ---
+    embed = discord.Embed(
+        title=f"⚔️ Chỉ số chiến đấu của {member.display_name}",
+        description=stats_text,
+        color=discord.Color.teal()
+    )
+    embed.set_thumbnail(url=member.display_avatar.url)
+    embed.add_field(name="🎽 Trang bị", value=equip_text, inline=False)
+
+    await ctx.send(embed=embed)
 
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):
