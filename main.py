@@ -1433,10 +1433,6 @@ async def stats(ctx, member: discord.Member = None):
         f"**HP:** {hp} <:Health:1426153576249430079>\n"
         f"**Mana:** {mana} <:Mana:1426153608361279558>\n"
         f"{equip_line}\n\n"
-        f"<:AD:1426154602335698974> | <:AP:1426153499766427679> | <:Armor:1426153517609127966> | <:MagicResist:1426153593148411934> | <:MagicResist:1426153593148411934>\n"
-        f"{ad} | {ap} | {armor} | {magic_resist} | {attack_speed}\n\n"
-        f"<:CritChance:1426153545131884617> | <:CritDamage:1426153557798944849> | <:scaleSV:1426154642676646039> | <:scaleDA:1426153627281526886> | <:scaleDR:1426153642527817799>\n"
-        f"{crit_rate}% | {crit_damage}% | {lifesteal}% | {amplify}% | {resistance}%"
     )
 
     # --- Embed hiển thị ---
@@ -1452,6 +1448,38 @@ async def stats(ctx, member: discord.Member = None):
     embed.add_field(
         name = f"<:AP:1426153499766427679>",
         value = f"{ap}"
+    )
+    embed.add_field(
+        name = f"<:Armor:1426153517609127966>",
+        value = f"{armor}"
+    )
+    embed.add_field(
+        name = f"<:MagicResist:1426153593148411934>",
+        value = f"{magic_resist}"
+    )
+    embed.add_field(
+        name = f"<:AS:1426153532620279951>",
+        value = f"{attack_speed}"
+    )
+    embed.add_field(
+        name = f"<:CritChance:1426153545131884617>",
+        value = f"{crit_rate}%"
+    )
+    embed.add_field(
+        name = f"<:CritDamage:1426153557798944849>",
+        value = f"{crit_damage}%"
+    )
+    embed.add_field(
+        name = f"<:scaleSV:1426154642676646039>",
+        value = f"{lifesteal}%"
+    )
+    embed.add_field(
+        name = f"<:scaleDA:1426153627281526886>",
+        value = f"{amplify}%"
+    )
+    embed.add_field(
+        name = f"<:scaleDR:1426153642527817799>",
+        value = f"{resistance}%"
     )
     embed.set_thumbnail(url=member.display_avatar.url)
 
