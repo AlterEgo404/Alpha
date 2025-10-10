@@ -40,9 +40,7 @@ from data_handler import (
 
 # Load hàm từ fight
 from fight import (
-    _find_item_key, _get_equips, _set_equips, _get_curr_hp, _set_curr_hp,
-    _user_inventory_count, _gear_bonuses, _aggregate_bonuses,
-    _effective_stats, _clamp_hp_to_max, _item_display, check_player_dead
+    _get_equips, _set_equips, _gear_bonuses, _aggregate_bonuses, _item_display, handle_death
 )
 
 # ---- Discord ----
@@ -531,8 +529,13 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
 
     member = member or ctx.author
     user_id = str(member.id)
+    result = handle_death(user_id)
 
     if not await check_permission(ctx, user_id):
+        return
+
+    if result["status"] in ["dead_new", "dead_wait"]:
+        await ctx.reply(result["msg"])
         return
 
     # ===== DB & chỉ số học vấn =====
@@ -1395,159 +1398,6 @@ async def study(ctx):
     update_user(user_id, data)
 
     await ctx.send(f"📖 Bạn học hành chăm chỉ và nhận được **+{gain} học vấn**! {bonus_msg}")
-
-# ===== Commands for Text Fight =====
-@bot.command(name="attack", help="`$attack @user` → tấn công người chơi")
-async def attack(ctx: commands.Context, target: discord.Member):
-
-    attacker_id = str(ctx.author.id)
-    target_id = str(target.id)
-
-    # 1) Chỉ tấn công người có tài khoản (và attacker cũng phải có)
-    attacker_doc = get_user(attacker_id)
-    if not attacker_doc:
-        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
-        return
-    target_doc = get_user(target_id)
-    if not target_doc:
-        await ctx.reply("❌ Người chơi này chưa có tài khoản. Bảo họ dùng `$start` trước nhé!")
-        return
-
-    # 2) Kiểm tra bot/tự đánh
-    if target.bot:
-        await ctx.reply("❌ Không thể tấn công bot.")
-        return
-    if target_id == attacker_id:
-        await ctx.reply("❌ Không thể tự tấn công chính mình.")
-        return
-
-    # 3) Tính sát thương (giáp là điểm, trừ thẳng)
-    atk = _effective_stats(attacker_id)
-    tgt = _effective_stats(target_id)
-
-    raw = random.randint(atk["dmg_min"], atk["dmg_max"])
-    dmg = max(1, raw - tgt["armor"])
-    new_hp = max(0, tgt["curr_hp"] - dmg)
-
-    _set_curr_hp(target_id, new_hp)
-
-    msg = (
-        f"💥 **{ctx.author.name}** tấn công **{target.name}** gây `{dmg}` sát thương "
-        f"(raw {raw} - giáp {tgt['armor']}).\n"
-        f"❤️ HP của {target.name}: `{new_hp}/{tgt['max_hp']}`"
-    )
-    if new_hp <= 0:
-        # chết → reset về MAX HP (cộng trang bị hiện có)
-        tgt_after = _effective_stats(target_id)
-        _set_curr_hp(target_id, tgt_after["max_hp"])
-        msg += f"\n☠️ {target.name} đã gục ngã! HP reset về {tgt_after['max_hp']}."
-    await ctx.send(msg)
-
-@bot.command(name="gear", help="`$gear [@user]` → xem 3 ô trang bị & chỉ số")
-async def gear(ctx: commands.Context, member: Optional[discord.Member] = None):
-
-    member = member or ctx.author
-    user_id = str(member.id)
-
-    # Yêu cầu có tài khoản (cả khi xem người khác)
-    if not get_user(user_id):
-        if member.id == ctx.author.id:
-            await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
-        else:
-            await ctx.reply("Người chơi này chưa có tài khoản.")
-        return
-
-    equips = _get_equips(user_id)
-    stats = _effective_stats(user_id)
-
-    lines = [
-        f"**Ô 1:** {_item_display(equips[0])}",
-        f"**Ô 2:** {_item_display(equips[1])}",
-        f"**Ô 3:** {_item_display(equips[2])}",
-        "",
-        f"❤️ HP: `{stats['curr_hp']}/{stats['max_hp']}`",
-        f"🛡️ Giáp (điểm): `{stats['armor']}`",
-        f"🗡️ Damage: `{stats['dmg_min']}–{stats['dmg_max']}`",
-    ]
-    await ctx.reply("\n".join(lines))
-
-@bot.command(name="equip", help="`$equip <item_id_hoặc_tên> [ô]` → đeo vào ô trống đầu, hoặc ô 1–3 nếu chỉ định")
-async def equip(ctx: commands.Context, item_id_or_name: str, slot: Optional[int] = None):
-    user_id = str(ctx.author.id)
-
-    # Cần có tài khoản
-    if not get_user(user_id):
-        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
-        return
-
-    key = _find_item_key(item_id_or_name)
-    if not key:
-        await ctx.reply("❌ Không tìm thấy món đó trong cửa hàng.")
-        return
-
-    data = shop_data.get(key) or {}
-    if not data.get("gear", False):
-        await ctx.reply("❌ Món này không phải trang bị.")
-        return
-
-    name = data.get("name", key)
-    owned = _user_inventory_count(user_id, name)
-    if owned <= 0:
-        await ctx.reply(f"❌ Bạn không sở hữu **{name}**.")
-        return
-
-    equips = _get_equips(user_id)
-    equipped_cnt = sum(1 for k in equips if k == key)
-    if equipped_cnt >= owned:
-        await ctx.reply(f"❌ Bạn chỉ sở hữu `{owned}` **{name}** và đã đeo hết.")
-        return
-
-    if slot is None:
-        # tìm ô trống đầu tiên
-        try:
-            idx = equips.index(None)
-        except ValueError:
-            await ctx.reply("❌ Cả 3 ô đã đầy. Chỉ định ô 1–3 để thay thế, hoặc dùng `$unequip <ô>` trước.")
-            return
-    else:
-        if slot not in (1, 2, 3):
-            await ctx.reply("❌ Ô hợp lệ: 1, 2, hoặc 3.")
-            return
-        idx = slot - 1
-
-    equips[idx] = key
-    _set_equips(user_id, equips)
-    _clamp_hp_to_max(user_id)
-
-    await ctx.reply(f"✅ Đã trang bị **{name}** vào ô `{idx + 1}`.")
-
-
-@bot.command(name="unequip", help="`$unequip <ô>` → tháo trang bị ở ô 1–3")
-async def unequip(ctx: commands.Context, slot: int):
-    user_id = str(ctx.author.id)
-
-    # Cần có tài khoản
-    if not get_user(user_id):
-        await ctx.reply("Bạn chưa có tài khoản. Dùng `$start` để tạo trước đã.")
-        return
-
-    if slot not in (1, 2, 3):
-        await ctx.reply("❌ Ô hợp lệ: 1, 2, hoặc 3.")
-        return
-
-    equips = _get_equips(user_id)
-    idx = slot - 1
-    if not equips[idx]:
-        await ctx.reply("❌ Ô này đang trống.")
-        return
-
-    removed_key = equips[idx]
-    equips[idx] = None
-    _set_equips(user_id, equips)
-    _clamp_hp_to_max(user_id)
-
-    name = shop_data.get(removed_key, {}).get("name", removed_key)
-    await ctx.reply(f"✅ Đã tháo **{name}** khỏi ô `{slot}`.")
 
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):

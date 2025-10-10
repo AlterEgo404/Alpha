@@ -3,6 +3,10 @@ from typing import Optional, List, Dict
 from data_handler import users_col
 import json
 import os
+from datetime import datetime, timedelta
+from data_handler import (
+    get_user
+)
 
 # --- Shop Data (nếu bạn vẫn dùng JSON cho shop) ---
 def load_json(file_name, default_data=None):
@@ -155,3 +159,65 @@ def format_stats_display(tf: Dict) -> str:
         f"⚡ AS: `{tf['attack_speed']}` | 🩸 Hút máu: `{tf['lifesteal']*100:.0f}%`\n"
         f"🔥 Khuếch đại: `{tf['amplify']*100:.0f}%` | 🪨 Chống chịu: `{tf['resistance']*100:.0f}%`"
     )
+
+def handle_death(user_id: str):
+    user = get_user(user_id)
+    if not user:
+        return {"status": "no_account", "msg": "Người chơi chưa có tài khoản."}
+
+    text_fight = user.get("text_fight", {})
+    hp = text_fight.get("Hp", 0)
+    max_hp = text_fight.get("MaxHp", 10000)
+    death_time = user.get("death_timer")
+
+    # 🔹 Nếu HP <= 0 → xử lý án tử
+    if hp <= 0:
+        if not death_time:
+            # Chưa có án tử -> tạo mới
+            death_time = datetime.now() + timedelta(hours=1)
+            users_col.update_one(
+                {"_id": user_id},
+                {"$set": {"death_timer": death_time}}
+            )
+            return {
+                "status": "dead_new",
+                "msg": f"💀 Bạn đã tử vong! Hồi sinh sau **1 giờ** (vào lúc {death_time.strftime('%H:%M:%S')})."
+            }
+
+        else:
+            now = datetime.now()
+            # Còn thời gian án tử
+            if now < death_time:
+                remaining = death_time - now
+                minutes = int(remaining.total_seconds() // 60)
+                seconds = int(remaining.total_seconds() % 60)
+                return {
+                    "status": "dead_wait",
+                    "msg": f"⏳ Bạn vẫn đang trong án tử! Còn {minutes} phút {seconds} giây để hồi sinh."
+                }
+
+            # Hết án tử → hồi sinh
+            else:
+                users_col.update_one(
+                    {"_id": user_id},
+                    {
+                        "$unset": {"death_timer": ""},
+                        "$set": {"text_fight.Hp": max_hp}
+                    }
+                )
+                return {
+                    "status": "revived",
+                    "msg": f"✨ Bạn đã hồi sinh với {max_hp} HP!"
+                }
+
+    # 🔹 Nếu người chơi còn sống mà vẫn có án tử → dọn dẹp
+    elif death_time:
+        users_col.update_one(
+            {"_id": user_id},
+            {"$unset": {"death_timer": ""}}
+        )
+
+    return {
+        "status": "alive",
+        "msg": f"❤️ Bạn vẫn còn sống với {hp}/{max_hp} HP."
+    }
