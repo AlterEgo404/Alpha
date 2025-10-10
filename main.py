@@ -1424,7 +1424,7 @@ async def stats(ctx, member: discord.Member = None):
 
     equips = tf.get("equips", [])
     equip_line = " | ".join(
-        _item_display(equips[i]) if i < len(equips) and equips[i] else "   "
+        _item_display(equips[i]) if i < len(equips) and equips[i] else "  :black_large_square:  "
         for i in range(3)
     )
 
