@@ -1421,7 +1421,7 @@ async def stats(ctx, member: discord.Member = None):
         if i < len(equips) and equips[i]:
             equip_display.append(_item_display(equips[i]))
         else:
-            equip_display.append(" - ")
+            equip_display.append("   ")
 
     equip_line = " | ".join(equip_display)
 
@@ -1457,16 +1457,23 @@ async def stats(ctx, member: discord.Member = None):
     embed.add_field(
         name="Chỉ số cơ bản",
         value=(
-            f"**AD**\n{ad}|**AP:**\n{ap}|**Giáp:**\n{armor}|**Kháng phép:**\n{magic_resist}|**AS:**\n{attack_speed}"
+            f"**AD**\n{ad}"
+            f"**AP:**\n{ap}"
+            f"**Giáp:**\n{armor}"
+            f"**Kháng phép:**\n{magic_resist}"
+            f"**AS:**\n{attack_speed}"
         ),
         inline=False
     )
-
     # Hàng chỉ số đặc biệt
     embed.add_field(
         name="Chỉ số đặc biệt",
         value=(
-            f"**Tỉ lệ Crit:**\n{crit_rate}%|**ST Crit:**\n{crit_damage}%|**Hút máu:**\n{lifesteal}%|**Khuếch đại:**\n{amplify}%|**Chống chịu:**\n{resistance}%"
+            f"**Tỉ lệ Crit:**\n{crit_rate}%"
+            f"**ST Crit:**\n{crit_damage}%"
+            f"**Hút máu:**\n{lifesteal}%"
+            f"**Khuếch đại:**\n{amplify}%"
+            f"**Chống chịu:**\n{resistance}%"
         ),
         inline=False
     )
