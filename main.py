@@ -1414,23 +1414,50 @@ async def stats(ctx, member: discord.Member = None):
         await ctx.send(f"❌ Không thể lấy dữ liệu Text Fight: {e}")
         return
 
-    # --- Hiển thị trang bị ---
+    # --- Lấy danh sách trang bị ---
+    equips = tf.get("equips", [])
     equip_display = []
-    for i, item_key in enumerate(tf.get("equips", [])):
-        equip_display.append(f"Slot {i+1}: {_item_display(item_key)}")
-    equip_text = "\n".join(equip_display) if equip_display else "*(Không có trang bị)*"
+    for i in range(3):
+        if i < len(equips) and equips[i]:
+            equip_display.append(_item_display(equips[i]))
+        else:
+            equip_display.append("-")
+
+    equip_line = " ｜ ".join(equip_display)
 
     # --- Format chỉ số ---
-    stats_text = format_stats_display(tf)
+    hp = f"{tf.get('hp', 0)}/{tf.get('max_hp', 0)}"
+    mana = f"{tf.get('mana', 0)}/{tf.get('max_mana', 0)}"
 
-    # --- Tạo embed đẹp ---
+    ad = tf.get("ad", 0)
+    ap = tf.get("ap", 0)
+    armor = tf.get("armor", 0)
+    magic_resist = tf.get("magic_resist", 0)
+    attack_speed = tf.get("attack_speed", 0)
+
+    crit_rate = round(tf.get("crit_rate", 0) * 100, 1)
+    crit_damage = round(tf.get("crit_damage", 0) * 100, 1)
+    lifesteal = round(tf.get("lifesteal", 0) * 100, 1)
+    amplify = round(tf.get("amplify", 0) * 100, 1)
+    resistance = round(tf.get("resistance", 0) * 100, 1)
+
+    # --- Chuỗi hiển thị chính ---
+    stats_text = (
+        f"❤️ **HP:** {hp}\n"
+        f"🔵 **Mana:** {mana}\n"
+        f"{equip_line}\n"
+        f"**AD**\n{ad}|**AP:**\n{ap}|**Giáp:**\n{armor}|**Kháng phép:**\n{magic_resist}|**AS:**\n{attack_speed}\n"
+        f"**Tỉ lệ Crit:**\n{crit_rate}%|**ST Crit:**\n{crit_damage}%|**Hút máu:**\n{lifesteal}%|**Khuếch đại:**\n{amplify}%|**Chống chịu:**\n{resistance}%"
+    )
+
+    # --- Embed hiển thị ---
     embed = discord.Embed(
         title=f"⚔️ Chỉ số chiến đấu của {member.display_name}",
         description=stats_text,
         color=discord.Color.teal()
     )
     embed.set_thumbnail(url=member.display_avatar.url)
-    embed.add_field(name="🎽 Trang bị", value=equip_text, inline=False)
+    embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}")
 
     await ctx.send(embed=embed)
 

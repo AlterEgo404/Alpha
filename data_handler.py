@@ -28,33 +28,6 @@ for f in ("points", "company_balance", "smart"):
 # === USER HELPERS ===
 def get_user(user_id: str) -> Optional[Dict[str, Any]]:
     user = users_col.find_one({"_id": user_id})
-    if not user:
-        return None
-
-    # Nếu user chưa có TextFight thì tự thêm vào
-    if "TextFight" not in user:
-        default_textfight = {
-            "hp": 10000,
-            "max_hp": 10000,
-            "mana": 600,
-            "max_mana": 600,
-            "ad": 40,
-            "ap": 0,
-            "armor": 0,
-            "magic_resist": 0,
-            "crit_rate": 0.3,
-            "crit_damage": 2.0,
-            "attack_speed": 0.5,
-            "lifesteal": 0.0,
-            "amplify": 0.0,
-            "resistance": 0.0
-        }
-        users_col.update_one(
-            {"_id": user_id},
-            {"$set": {"TextFight": default_textfight}}
-        )
-        user["TextFight"] = default_textfight  # cập nhật cache trong RAM luôn
-
     return user
 
 def create_user(user_id: str, default_data: Optional[Dict[str, Any]] = None) -> None:

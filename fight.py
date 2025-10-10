@@ -148,16 +148,29 @@ def get_full_stats(user_id: str) -> Dict:
     total["equips"] = equips
     return total
 
-def format_stats_display(tf: Dict) -> str:
-    """Format chỉ số hiển thị đẹp."""
+def format_stats_display(tf: dict) -> str:
+    """Trả về chuỗi hiển thị chỉ số Text Fight theo định dạng đẹp."""
+    hp = f"{tf.get('hp', 0)}/{tf.get('max_hp', 0)}"
+    mana = f"{tf.get('mana', 0)}/{tf.get('max_mana', 0)}"
+
+    ad = tf.get("ad", 0)
+    ap = tf.get("ap", 0)
+    armor = tf.get("armor", 0)
+    magic_resist = tf.get("magic_resist", 0)
+    attack_speed = tf.get("attack_speed", 0)
+
+    crit_rate = round(tf.get("crit_rate", 0) * 100, 1)
+    crit_damage = round(tf.get("crit_damage", 0) * 100, 1)
+    lifesteal = round(tf.get("lifesteal", 0) * 100, 1)
+    amplify = round(tf.get("amplify", 0) * 100, 1)
+    resistance = round(tf.get("resistance", 0) * 100, 1)
+
     return (
-        f"❤️ HP: `{tf['hp']}/{tf['max_hp']}`\n"
-        f"🔵 Mana: `{tf['mana']}/{tf['max_mana']}`\n"
-        f"⚔️ AD: `{tf['ad_min']}–{tf['ad_max']}` | 🔮 AP: `{tf['ap']}`\n"
-        f"🛡️ Giáp: `{tf['armor']}` | 🧿 Kháng phép: `{tf['magic_resist']}`\n"
-        f"💥 Crit: `{tf['crit_rate']*100:.0f}%` | 💀 Crit DMG: `{tf['crit_damage']*100:.0f}%`\n"
-        f"⚡ AS: `{tf['attack_speed']}` | 🩸 Hút máu: `{tf['lifesteal']*100:.0f}%`\n"
-        f"🔥 Khuếch đại: `{tf['amplify']*100:.0f}%` | 🪨 Chống chịu: `{tf['resistance']*100:.0f}%`"
+        f"**❤️ HP:** {hp}\n"
+        f"**🔵 Mana:** {mana}\n"
+        f"`  -  |  -  |  -  `\n"
+        f"**AD:** {ad} ｜ **AP:** {ap} ｜ **Giáp:** {armor} ｜ **Kháng phép:** {magic_resist} ｜ **AS:** {attack_speed}\n"
+        f"**Tỉ lệ Crit:** {crit_rate}% ｜ **ST Crit:** {crit_damage}% ｜ **Hút máu:** {lifesteal}% ｜ **Khuếch đại:** {amplify}% ｜ **Chống chịu:** {resistance}%"
     )
 
 def handle_death(user_id: str):
