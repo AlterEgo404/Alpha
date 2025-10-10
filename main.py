@@ -1403,119 +1403,50 @@ async def study(ctx):
 # === Text fight ===
 @bot.command(name="stats", help="Hiển thị chỉ số chiến đấu của bạn hoặc người khác.")
 async def stats(ctx, member: discord.Member = None):
-    """Hiển thị thông tin Text Fight dưới dạng embed."""
     member = member or ctx.author
     user_id = str(member.id)
 
-    # --- Lấy chỉ số tổng hợp ---
-    try:
-        tf = get_full_stats(user_id)
-    except Exception as e:
-        await ctx.send(f"❌ Không thể lấy dữ liệu Text Fight: {e}")
-        return
+    # --- Lấy dữ liệu từ MongoDB ---
+    tf = get_full_stats(user_id)
 
-    # --- Lấy danh sách trang bị ---
+    hp = f"{tf['hp']}/{tf['max_hp']}"
+    mana = f"{tf['mana']}/{tf['max_mana']}"
+    ad = tf['ad']
+    ap = tf['ap']
+    armor = tf['armor']
+    magic_resist = tf['magic_resist']
+    attack_speed = tf['attack_speed']
+    crit_rate = round(tf['crit_rate'] * 100, 1)
+    crit_damage = round(tf['crit_damage'] * 100, 1)
+    lifesteal = round(tf['lifesteal'] * 100, 1)
+    amplify = round(tf['amplify'] * 100, 1)
+    resistance = round(tf['resistance'] * 100, 1)
+
     equips = tf.get("equips", [])
-    equip_display = []
-    for i in range(3):
-        if i < len(equips) and equips[i]:
-            equip_display.append(_item_display(equips[i]))
-        else:
-            equip_display.append("   ")
-
-    equip_line = " | ".join(equip_display)
-
-    # --- Format chỉ số ---
-    hp = f"{tf.get('hp', 0)}/{tf.get('max_hp', 0)}"
-    mana = f"{tf.get('mana', 0)}/{tf.get('max_mana', 0)}"
-
-    ad = tf.get("ad", 0)
-    ap = tf.get("ap", 0)
-    armor = tf.get("armor", 0)
-    magic_resist = tf.get("magic_resist", 0)
-    attack_speed = tf.get("attack_speed", 0)
-
-    crit_rate = round(tf.get("crit_rate", 0) * 100, 1)
-    crit_damage = round(tf.get("crit_damage", 0) * 100, 1)
-    lifesteal = round(tf.get("lifesteal", 0) * 100, 1)
-    amplify = round(tf.get("amplify", 0) * 100, 1)
-    resistance = round(tf.get("resistance", 0) * 100, 1)
+    equip_line = " | ".join(
+        _item_display(equips[i]) if i < len(equips) and equips[i] else "   "
+        for i in range(3)
+    )
 
     # --- Chuỗi hiển thị chính ---
     stats_text = (
-        f"❤️ **HP:** {hp}\n"
-        f"🔵 **Mana:** {mana}\n"
-        f"{equip_line}\n"
+        f"**HP:** {hp} <:Health:1426153576249430079>\n"
+        f"**Mana:** {mana} <:Mana:1426153608361279558>\n"
+        f"{equip_line}\n\n"
+        f"<:AD:1426154602335698974> | <:AP:1426153499766427679> | <:Armor:1426153517609127966> | <:MagicResist:1426153593148411934> | <:MagicResist:1426153593148411934>\n"
+        f"{ad} | {ap} | {armor} | {magic_resist} | {attack_speed}\n\n"
+        f"<:CritChance:1426153545131884617> | <:CritDamage:1426153557798944849> | <:scaleSV:1426154642676646039> | <:scaleDA:1426153627281526886> | <:scaleDR:1426153642527817799>\n"
+        f"{crit_rate}% | {crit_damage}% | {lifesteal}% | {amplify}% | {resistance}%"
     )
+
     # --- Embed hiển thị ---
     embed = discord.Embed(
         title=f"⚔️ Chỉ số chiến đấu của {member.display_name}",
         description=stats_text,
         color=discord.Color.red()
     )
-    # Hàng chỉ số chính
-    embed.add_field(
-        value=(
-            f"**AD**\n{ad}"
-        ),
-        inline=False
-    )
-    embed.add_field(
-        value=(
-            f"**AP:**\n{ap}"
-        ),
-        inline=False
-    )
-    embed.add_field(
-        value=(
-            f"**Giáp:**\n{armor}"
-        ),
-        inline=False
-    )
-    embed.add_field(
-        value=(
-            f"**Kháng phép:**\n{magic_resist}"
-        ),
-        inline=False
-    )
-    embed.add_field(
-        value=(
-            f"**AS:**\n{attack_speed}"
-        ),
-        inline=False
-    )
-    # Hàng chỉ số đặc biệt
-    embed.add_field(
-        value=(
-            f"**Tỉ lệ Crit:**\n{crit_rate}%"
-        ),
-        inline=False
-    )
-    embed.add_field(
-        value=(
-            f"**ST Crit:**\n{crit_damage}%"
-        ),
-        inline=False
-    )
-    embed.add_field(
-        value=(
-            f"**Hút máu:**\n{lifesteal}%"
-        ),
-        inline=False
-    )
-    embed.add_field(
-        value=(
-            f"**Khuếch đại:**\n{amplify}%"
-        ),
-        inline=False
-    )
-    embed.add_field(
-        value=(
-            f"**Chống chịu:**\n{resistance}%"
-        ),
-        inline=False
-    )
     embed.set_thumbnail(url=member.display_avatar.url)
+    embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}")
 
     await ctx.send(embed=embed)
 
