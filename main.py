@@ -1421,9 +1421,9 @@ async def stats(ctx, member: discord.Member = None):
         if i < len(equips) and equips[i]:
             equip_display.append(_item_display(equips[i]))
         else:
-            equip_display.append("-")
+            equip_display.append(" - ")
 
-    equip_line = " ｜ ".join(equip_display)
+    equip_line = " | ".join(equip_display)
 
     # --- Format chỉ số ---
     hp = f"{tf.get('hp', 0)}/{tf.get('max_hp', 0)}"
@@ -1446,18 +1446,31 @@ async def stats(ctx, member: discord.Member = None):
         f"❤️ **HP:** {hp}\n"
         f"🔵 **Mana:** {mana}\n"
         f"{equip_line}\n"
-        f"**AD**\n{ad}|**AP:**\n{ap}|**Giáp:**\n{armor}|**Kháng phép:**\n{magic_resist}|**AS:**\n{attack_speed}\n"
-        f"**Tỉ lệ Crit:**\n{crit_rate}%|**ST Crit:**\n{crit_damage}%|**Hút máu:**\n{lifesteal}%|**Khuếch đại:**\n{amplify}%|**Chống chịu:**\n{resistance}%"
     )
-
     # --- Embed hiển thị ---
     embed = discord.Embed(
         title=f"⚔️ Chỉ số chiến đấu của {member.display_name}",
         description=stats_text,
-        color=discord.Color.teal()
+        color=discord.Color.red()
+    )
+    # Hàng chỉ số chính
+    embed.add_field(
+        name="Chỉ số cơ bản",
+        value=(
+            f"**AD**\n{ad}|**AP:**\n{ap}|**Giáp:**\n{armor}|**Kháng phép:**\n{magic_resist}|**AS:**\n{attack_speed}"
+        ),
+        inline=False
+    )
+
+    # Hàng chỉ số đặc biệt
+    embed.add_field(
+        name="Chỉ số đặc biệt",
+        value=(
+            f"**Tỉ lệ Crit:**\n{crit_rate}%|**ST Crit:**\n{crit_damage}%|**Hút máu:**\n{lifesteal}%|**Khuếch đại:**\n{amplify}%|**Chống chịu:**\n{resistance}%"
+        ),
+        inline=False
     )
     embed.set_thumbnail(url=member.display_avatar.url)
-    embed.set_footer(text=f"Yêu cầu bởi {ctx.author.display_name}")
 
     await ctx.send(embed=embed)
 
