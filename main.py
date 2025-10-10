@@ -1434,7 +1434,6 @@ async def stats(ctx, member: discord.Member = None):
     MR = "<:MagicResist:1426153593148411934>"
     AS = "<:AS:1426153532620279951>"
     CC = "<:CritChance:1426153545131884617>"
-    CD = "<:CritDamage:1426153557798944849>"
     SV = "<:scaleSV:1426154642676646039>"
     DA = "<:scaleDA:1426153627281526886>"
     DR = "<:scaleDR:1426153642527817799>"
@@ -1444,10 +1443,6 @@ async def stats(ctx, member: discord.Member = None):
         f"**HP:** {hp} <:Health:1426153576249430079>\n"
         f"**Mana:** {mana} <:Mana:1426153608361279558>\n"
         f"{equip_line}\n\n"
-        f"{AD}            {AP}            {Armor}            {MR}            {AS}"
-        f"{ad}            {ap}            {armor}            {magic_resist}            {attack_speed}"
-        f"{CC}            {CD}            {SV}            {DA}            {DR}"
-        f"{crit_rate}%            {crit_damage}%            {lifesteal}%            {amplify}%            {resistance}%"
     )
 
     # --- Embed hiển thị ---
@@ -1459,11 +1454,11 @@ async def stats(ctx, member: discord.Member = None):
     embed.add_field(name = f"{AD}", value = f"{ad}", inline = True)
     embed.add_field(name = f"{AP}", value = f"{ap}", inline = True)
     embed.add_field(name = f"{Armor}", value = f"{armor}", inline = True)
+    embed.add_field(name="", value="", inline=False)
     embed.add_field(name = f"{MR}", value = f"{magic_resist}", inline = True)
     embed.add_field(name = f"{AS}", value = f"{attack_speed}", inline = True)
-    embed.add_field(name="", value="", inline=False)
     embed.add_field(name = f"{CC}", value = f"{crit_rate}%", inline = True)
-    embed.add_field(name = f"{CD}", value = f"{crit_damage}%", inline = True)
+    embed.add_field(name="", value="", inline=False)
     embed.add_field(name = f"{SV}", value = f"{lifesteal}%", inline = True)
     embed.add_field(name = f"{DA}", value = f"{amplify}%", inline = True)
     embed.add_field(name = f"{DR}", value = f"{resistance}%", inline = True)
