@@ -1428,16 +1428,6 @@ async def stats(ctx, member: discord.Member = None):
         for i in range(3)
     )
 
-    AD = "<:AD:1426154602335698974>"
-    AP = "<:AP:1426153499766427679>"
-    Armor = "<:Armor:1426153517609127966>"
-    MR = "<:MagicResist:1426153593148411934>"
-    AS = "<:AS:1426153532620279951>"
-    CC = "<:CritChance:1426153545131884617>"
-    SV = "<:scaleSV:1426154642676646039>"
-    DA = "<:scaleDA:1426153627281526886>"
-    DR = "<:scaleDR:1426153642527817799>"
-
     # --- Chuỗi hiển thị chính ---
     stats_text = (
         f"**HP:** {hp} <:Health:1426153576249430079>\n"
@@ -1451,17 +1441,20 @@ async def stats(ctx, member: discord.Member = None):
         description=stats_text,
         color=discord.Color.red()
     )
-    embed.add_field(name = f"", value = f":AD:\n{ad}", inline = True)
-    embed.add_field(name = f"", value = f":AP:\n{ap}", inline = True)
-    embed.add_field(name = f"", value = f":Armor:\n{armor}", inline = True)
-    embed.add_field(name = f"", value = f":MR:\n{magic_resist}", inline = True)
-    embed.add_field(name = f"", value = f":AS:\n{attack_speed}", inline = True)
+    embed.add_field(name = f"<:AD:1426154602335698974>", value = f"{ad}", inline = True)
+    embed.add_field(name = f"<:AP:1426153499766427679>", value = f"{ap}", inline = True)
+    embed.add_field(name = f"<:scalemanaregen:1426483869120594070>", value = f"0", inline = True)
     embed.add_field(name="", value="", inline=False)
-    embed.add_field(name = f"", value = f":CD:\n{lifesteal}%", inline = True)
-    embed.add_field(name = f"", value = f":CC:\n{crit_rate}%", inline = True)
-    embed.add_field(name = f"", value = f":SV:\n{lifesteal}%", inline = True)
-    embed.add_field(name = f"", value = f":DA:\n{amplify}%", inline = True)
-    embed.add_field(name = f"", value = f":DR:\n{resistance}%", inline = True)
+    embed.add_field(name = f"<:Armor:1426153517609127966>", value = f"{armor}", inline = True)
+    embed.add_field(name = f"<:MagicResist:1426153593148411934>", value = f"{magic_resist}", inline = True)
+    embed.add_field(name = f"<:AS:1426153532620279951>", value = f"{attack_speed}", inline = True)
+    embed.add_field(name="", value="", inline=False)
+    embed.add_field(name = f"<:CritChance:1426153545131884617>", value = f"{crit_rate}%", inline = True)
+    embed.add_field(name = f"<:CritDamage:1426153557798944849>", value = f"{crit_damage}%", inline = True)
+    embed.add_field(name = f"<:scaleSV:1426154642676646039>", value = f"{lifesteal}%", inline = True)
+    embed.add_field(name="", value="", inline=False)
+    embed.add_field(name = f"<:scaleDA:1426153627281526886>", value = f"{amplify}%", inline = True)
+    embed.add_field(name = f"<:scaleDR:1426153642527817799>", value = f"{resistance}%", inline = True)
 
     await ctx.send(embed=embed)
 
