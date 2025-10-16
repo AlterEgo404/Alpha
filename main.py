@@ -1446,9 +1446,9 @@ async def stats(ctx, member: discord.Member = None):
         )
     embed.add_field(name="", value="", inline=False)
 
+    embed.add_field(name = f"<:BasicDamage:1428299261401108621>", value = f"{ad}", inline = True)
     embed.add_field(name = f"<:AD:1426154602335698974>", value = f"{ad}", inline = True)
     embed.add_field(name = f"<:AP:1426153499766427679>", value = f"{ap}", inline = True)
-    embed.add_field(name = f"<:scalemanaregen:1426483869120594070>", value = f"0", inline = True)
     embed.add_field(name="", value="", inline=False)
 
     embed.add_field(name = f"<:Armor:1426153517609127966>", value = f"{armor}", inline = True)
@@ -1463,6 +1463,7 @@ async def stats(ctx, member: discord.Member = None):
     
     embed.add_field(name = f"<:scaleDA:1426153627281526886>", value = f"{amplify}%", inline = True)
     embed.add_field(name = f"<:scaleDR:1426153642527817799>", value = f"{resistance}%", inline = True)
+    embed.add_field(name = f"<:scalemanaregen:1426483869120594070>", value = f"0", inline = True)
 
     await ctx.send(embed=embed)
 
