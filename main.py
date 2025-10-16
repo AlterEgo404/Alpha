@@ -1446,7 +1446,7 @@ async def stats(ctx, member: discord.Member = None):
         )
     embed.add_field(name="", value="", inline=False)
 
-    embed.add_field(name = f"<:BasicDamage:1428299261401108621>", value = f"{ad}", inline = True)
+    embed.add_field(name = f"<:BasicDamage:1428307672574459914>", value = f"{ad}", inline = True)
     embed.add_field(name = f"<:AD:1426154602335698974>", value = f"{ad}", inline = True)
     embed.add_field(name = f"<:AP:1426153499766427679>", value = f"{ap}", inline = True)
     embed.add_field(name="", value="", inline=False)
