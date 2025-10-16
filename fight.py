@@ -7,6 +7,14 @@ from datetime import datetime, timedelta
 from data_handler import (
     get_user
 )
+from pymongo import MongoClient
+
+MONGO_URI = os.getenv("MONGO_URI")          # bắt buộc
+
+# Kết nối MongoDB — bạn thay URI và DB name cho đúng
+client = MongoClient(MONGO_URI)
+db = client["text_fight"]
+collection = db["users"]
 
 # --- Shop Data (nếu bạn vẫn dùng JSON cho shop) ---
 def load_json(file_name, default_data=None):
@@ -174,64 +182,16 @@ def format_stats_display(tf: dict) -> str:
         f"**Tỉ lệ Crit:** {crit_rate}% ｜ **ST Crit:** {crit_damage}% ｜ **Hút máu:** {lifesteal}% ｜ **Khuếch đại:** {amplify}% ｜ **Chống chịu:** {resistance}%"
     )
 
-def handle_death(user_id: str):
-    user = get_user(user_id)
-    if not user:
-        return {"status": "no_account", "msg": "Người chơi chưa có tài khoản."}
-
-    text_fight = user.get("text_fight", {})
-    hp = text_fight.get("Hp", 0)
-    max_hp = text_fight.get("MaxHp", 10000)
-    death_time = user.get("death_timer")
-
-    # 🔹 Nếu HP <= 0 → xử lý án tử
-    if hp <= 0:
-        if not death_time:
-            # Chưa có án tử -> tạo mới
-            death_time = datetime.now() + timedelta(hours=1)
-            users_col.update_one(
-                {"_id": user_id},
-                {"$set": {"death_timer": death_time}}
-            )
-            return {
-                "status": "dead_new",
-                "msg": f"💀 Bạn đã tử vong! Hồi sinh sau **1 giờ** (vào lúc {death_time.strftime('%H:%M:%S')})."
-            }
-
-        else:
-            now = datetime.now()
-            # Còn thời gian án tử
-            if now < death_time:
-                remaining = death_time - now
-                minutes = int(remaining.total_seconds() // 60)
-                seconds = int(remaining.total_seconds() % 60)
-                return {
-                    "status": "dead_wait",
-                    "msg": f"⏳ Bạn vẫn đang trong án tử! Còn {minutes} phút {seconds} giây để hồi sinh."
-                }
-
-            # Hết án tử → hồi sinh
-            else:
-                users_col.update_one(
-                    {"_id": user_id},
-                    {
-                        "$unset": {"death_timer": ""},
-                        "$set": {"text_fight.Hp": max_hp}
-                    }
-                )
-                return {
-                    "status": "revived",
-                    "msg": f"✨ Bạn đã hồi sinh với {max_hp} HP!"
-                }
-
-    # 🔹 Nếu người chơi còn sống mà vẫn có án tử → dọn dẹp
-    elif death_time:
-        users_col.update_one(
+def update_user_stats(user_id: str, data: dict):
+    """
+    Cập nhật dữ liệu Text Fight của người chơi trong MongoDB.
+    Nếu chưa có, tự động tạo mới.
+    """
+    try:
+        collection.update_one(
             {"_id": user_id},
-            {"$unset": {"death_timer": ""}}
+            {"$set": data},
+            upsert=True
         )
-
-    return {
-        "status": "alive",
-        "msg": f"❤️ Bạn vẫn còn sống với {hp}/{max_hp} HP."
-    }
+    except Exception as e:
+        print(f"[MongoDB] ❌ Lỗi cập nhật user {user_id}: {e}")

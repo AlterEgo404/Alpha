@@ -41,7 +41,7 @@ from data_handler import (
 # Load hàm từ fight
 from fight import (
     _get_equips, _set_equips, _gear_bonuses, _aggregate_bonuses, 
-    _item_display, handle_death, get_full_stats, format_stats_display
+    _item_display, get_full_stats, format_stats_display, update_user_stats
 )
 
 # ---- Discord ----
@@ -1462,6 +1462,84 @@ async def stats(ctx, member: discord.Member = None):
     embed.add_field(name = f"<:scalemanaregen:1426483869120594070>", value = f"0", inline = True)
 
     await ctx.send(embed=embed)
+
+import random
+import discord
+from discord.ext import commands
+
+@bot.command(name="attack", help="Tấn công người chơi khác (Text Fight).")
+async def attack(ctx, target: discord.Member):
+    """Thực hiện 1 đòn đánh thường giữa hai người chơi."""
+    attacker = ctx.author
+    if target.id == attacker.id:
+        await ctx.send("❌ Bạn không thể tự tấn công chính mình!")
+        return
+
+    attacker_id = str(attacker.id)
+    target_id = str(target.id)
+
+    # --- Lấy dữ liệu ---
+    try:
+        attacker_data = get_full_stats(attacker_id)
+        target_data = get_full_stats(target_id)
+    except Exception as e:
+        await ctx.send(f"❌ Không thể lấy dữ liệu người chơi: {e}")
+        return
+
+    # --- Các chỉ số cần thiết ---
+    basic_damage = attacker_data["basic_damage"]
+    AS = attacker_data["attack_speed"]
+    crit_rate = attacker_data["crit_rate"]
+    crit_damage = attacker_data["crit_damage"]
+    lifesteal = attacker_data["lifesteal"]
+
+    armor = target_data["armor"]
+    resistance = target_data["resistance"]
+
+    # --- Tính sát thương ---
+    damage = basic_damage * AS
+    is_crit = False
+
+    if random.random() < crit_rate:
+        damage *= crit_damage
+        is_crit = True
+
+    # --- Giảm sát thương bởi giáp ---
+    damage *= (100 / (100 + armor))
+    damage = round(damage)
+
+    # --- Áp dụng sát thương ---
+    target_data["hp"] -= damage
+    if target_data["hp"] < 0:
+        target_data["hp"] = 0
+
+    # --- Hút máu ---
+    heal = round(damage * lifesteal)
+    if heal > 0:
+        attacker_data["hp"] = min(attacker_data["hp"] + heal, attacker_data["max_hp"])
+
+    # --- Cập nhật MongoDB ---
+    update_user_stats(attacker_id, attacker_data)
+    update_user_stats(target_id, target_data)
+
+    # --- Tạo tin nhắn kết quả ---
+    msg = (
+        f"⚔️ **{attacker.display_name}** tấn công **{target.display_name}**!\n"
+        f"🗡️ Gây **{damage}** sát thương"
+    )
+    if is_crit:
+        msg += " 💥 *(Chí mạng!)*"
+
+    msg += f"\n💔 **{target.display_name}** còn **{target_data['hp']}/{target_data['max_hp']} HP**."
+
+    if heal > 0:
+        msg += f"\n❤️ **{attacker.display_name}** hồi **{heal} HP**."
+
+    # --- Kiểm tra tử vong ---
+    if target_data["hp"] <= 0:
+        msg += f"\n💀 **{target.display_name}** đã bị hạ gục!"
+
+    await ctx.send(msg)
 
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):
