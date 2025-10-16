@@ -214,10 +214,6 @@ async def _ensure_server_img():
 
 # ---- Permissions & user checks ----
 async def check_permission(ctx, user_id):
-    # Chỉ cho phép sử dụng trong kênh cụ thể
-    if ctx.author.id != 1196335145964285984 and ctx.channel.id != ALLOWED_CHANNEL_ID:
-        await ctx.reply(f"Lệnh này chỉ có thể được sử dụng trong <#{ALLOWED_CHANNEL_ID}>")
-        return False
 
     if not get_user(user_id):
         await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
