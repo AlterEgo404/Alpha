@@ -1527,19 +1527,12 @@ async def attack(ctx, target: discord.Member):
         f"⚔️ **{attacker.display_name}** tấn công **{target.display_name}**!\n"
         f"🗡️ Gây **{damage}** sát thương"
     )
-    if is_crit:
-        msg += " 💥 *(Chí mạng!)*"
-
-    msg += f"\n💔 **{target.display_name}** còn **{target_data['hp']}/{target_data['max_hp']} HP**."
-
-    if heal > 0:
-        msg += f"\n❤️ **{attacker.display_name}** hồi **{heal} HP**."
 
     # --- Kiểm tra tử vong ---
     if target_data["hp"] <= 0:
         msg += f"\n💀 **{target.display_name}** đã bị hạ gục!"
 
-    await ctx.send(msg)
+    await ctx.reply(msg)
 
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):
