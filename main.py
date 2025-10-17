@@ -41,7 +41,8 @@ from data_handler import (
 # Load hàm từ fight
 from fight import (
     _get_equips, _set_equips, _gear_bonuses, _aggregate_bonuses, 
-    _item_display, get_full_stats, format_stats_display, update_user_stats
+    _item_display, get_full_stats, format_stats_display, update_user_stats,
+    start_auto_check_loop
 )
 
 # ---- Discord ----
@@ -319,6 +320,7 @@ async def on_ready():
 
     bot.loop.create_task(update_company_balances())
     bot.loop.create_task(clean_zero_items())
+    start_auto_check_loop(bot)
 
 @bot.event
 async def on_command_error(ctx, error):

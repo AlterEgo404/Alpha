@@ -1,22 +1,12 @@
 # fight.py
 from typing import Optional, List, Dict
-from data_handler import users_col
 import json
 import os
 from datetime import datetime, timedelta
-from data_handler import (
-    get_user
-)
-from pymongo import MongoClient
+from discord.ext import tasks
+from data_handler import get_user, users_col
 
-MONGO_URI = os.getenv("MONGO_URI")          # bắt buộc
-
-# Kết nối MongoDB — bạn thay URI và DB name cho đúng
-client = MongoClient(MONGO_URI)
-db = client["text_fight"]
-collection = db["users"]
-
-# --- Shop Data (nếu bạn vẫn dùng JSON cho shop) ---
+# --- Tải dữ liệu shop ---
 def load_json(file_name, default_data=None):
     if not os.path.exists(file_name):
         default_data = default_data or {}
@@ -48,6 +38,7 @@ DEFAULT_TEXTFIGHT = {
 
 EQUIP_SLOTS = 3
 
+
 # === Mongo Functions ===
 def get_user_textfight(user_id: str) -> Dict:
     """Lấy hoặc khởi tạo chỉ số fight trong Mongo."""
@@ -65,6 +56,7 @@ def get_user_textfight(user_id: str) -> Dict:
         tf.setdefault(k, v)
     return tf
 
+
 def update_textfight(user_id: str, data: Dict):
     """Cập nhật 1 hoặc nhiều chỉ số fight."""
     users_col.update_one(
@@ -73,12 +65,14 @@ def update_textfight(user_id: str, data: Dict):
         upsert=True
     )
 
+
 def modify_hp(user_id: str, delta: int):
     """Tăng/giảm HP, tự giới hạn trong [0, max_hp]."""
     tf = get_user_textfight(user_id)
     new_hp = max(0, min(tf["hp"] + delta, tf["max_hp"]))
     update_textfight(user_id, {"hp": new_hp})
     return new_hp
+
 
 def modify_mana(user_id: str, delta: int):
     """Tăng/giảm mana, tự giới hạn trong [0, max_mana]."""
@@ -87,9 +81,11 @@ def modify_mana(user_id: str, delta: int):
     update_textfight(user_id, {"mana": new_mana})
     return new_mana
 
+
 def reset_textfight(user_id: str):
     """Reset toàn bộ chỉ số fight về mặc định."""
     users_col.update_one({"_id": user_id}, {"$set": {"text_fight": DEFAULT_TEXTFIGHT}}, upsert=True)
+
 
 # === Equipment (Mongo) ===
 def _get_equips(user_id: str) -> List[Optional[str]]:
@@ -99,10 +95,12 @@ def _get_equips(user_id: str) -> List[Optional[str]]:
     equips += [None] * (EQUIP_SLOTS - len(equips))
     return equips[:EQUIP_SLOTS]
 
+
 def _set_equips(user_id: str, equips: List[Optional[str]]):
     if not isinstance(equips, list) or len(equips) != EQUIP_SLOTS:
         raise ValueError("fight_equips phải là list gồm 3 phần tử")
     users_col.update_one({"_id": user_id}, {"$set": {"fight_equips": equips}}, upsert=True)
+
 
 # === Item & Bonus ===
 def _item_display(item_key: Optional[str]) -> str:
@@ -113,6 +111,7 @@ def _item_display(item_key: Optional[str]) -> str:
     name = data.get("name", item_key)
     return f"{icon} {name}".strip()
 
+
 def _gear_bonuses(item_key: str) -> Dict:
     """Lấy stat bonus từ item."""
     item = shop_data.get(item_key) or {}
@@ -120,9 +119,11 @@ def _gear_bonuses(item_key: str) -> Dict:
     effects = item.get("effects", {})
 
     def as_int(x): return int(x) if str(x).isdigit() else 0
-    def as_float(x): 
-        try: return float(x)
-        except: return 0.0
+    def as_float(x):
+        try:
+            return float(x)
+        except:
+            return 0.0
 
     return {
         "hp_flat": as_int(stats.get("hp", 0)),
@@ -183,15 +184,50 @@ def format_stats_display(tf: dict) -> str:
     )
 
 def update_user_stats(user_id: str, data: dict):
-    """
-    Cập nhật dữ liệu Text Fight của người chơi trong MongoDB.
-    Nếu chưa có, tự động tạo mới.
-    """
+    """Cập nhật dữ liệu Text Fight của người chơi trong MongoDB."""
     try:
-        collection.update_one(
-            {"_id": user_id},
-            {"$set": data},
-            upsert=True
-        )
+        users_col.update_one({"_id": user_id}, {"$set": data}, upsert=True)
     except Exception as e:
         print(f"[MongoDB] ❌ Lỗi cập nhật user {user_id}: {e}")
+
+
+# === Tự động kiểm tra máu và hồi sinh ===
+@tasks.loop(seconds=10)
+async def auto_check_life_and_death():
+    """Tự động kiểm tra trạng thái sinh tử của toàn bộ người chơi mỗi 10 giây."""
+    now = datetime.datetime.now()
+    for user in users_col.find({}, {"life": 1, "max_life": 1, "death": 1, "death_time": 1}):
+        user_id = user["_id"]
+        life = user.get("life", 0)
+        death = user.get("death", False)
+        death_time = user.get("death_time")
+        max_life = user.get("max_life", 100)
+
+        # Nếu máu <= 0 và chưa chết -> đánh dấu chết, đặt thời gian tử 1h
+        if life <= 0 and not death:
+            users_col.update_one(
+                {"_id": user_id},
+                {"$set": {
+                    "death": True,
+                    "death_time": now + timedelta(hours=1)
+                }}
+            )
+
+        # Nếu đã chết và hết 1h -> hồi sinh
+        elif death and death_time and now >= death_time:
+            users_col.update_one(
+                {"_id": user_id},
+                {"$set": {
+                    "death": False,
+                    "life": max_life
+                },
+                 "$unset": {
+                    "death_time": ""
+                 }}
+            )
+
+
+def start_auto_check_loop(bot):
+    """Khởi động vòng kiểm tra tự động khi bot khởi chạy."""
+    if not auto_check_life_and_death.is_running():
+        auto_check_life_and_death.start()
