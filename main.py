@@ -567,7 +567,7 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
     # ===== Tải ảnh (song song) =====
     bg_url = get_user_background(user_id)
     if not bg_url:
-        bg_url = "https://cdn.discordapp.com/attachments/1316987020081496085/1417469300503089224/image.png?ex=68d5cd68&is=68d47be8&hm=224a608dfac50edfdff40a2c653ad92ef0c33b3889e507e79aa854fa24d4e0ca&"  # default
+        bg_url = "https://wallpaperaccess.com/full/1556608.jpg"  # default
     await _ensure_server_img()
     avatar_img, bg_img = await asyncio.gather(
         fetch_image(avatar_url, timeout_sec=6),
