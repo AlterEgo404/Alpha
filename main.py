@@ -526,13 +526,8 @@ async def cccd(ctx, member: discord.Member = None, size: int = 128):
 
     member = member or ctx.author
     user_id = str(member.id)
-    result = handle_death(user_id)
 
     if not await check_permission(ctx, user_id):
-        return
-
-    if result["status"] in ["dead_new", "dead_wait"]:
-        await ctx.reply(result["msg"])
         return
 
     # ===== DB & chỉ số học vấn =====
