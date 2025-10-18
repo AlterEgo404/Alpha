@@ -33,16 +33,16 @@ client = MongoClient(MONGO_URI)
 
 # Load dữ liệu & handler
 from data_handler import (
-    get_user, update_user, create_user, save_user_full,
+    get_user, update_user, create_user,
     get_jackpot, update_jackpot, set_jackpot,
     users_col, backgrounds_col
 )
 
 # Load hàm từ fight
 from fight import (
-    _get_equips, _set_equips, _gear_bonuses, _aggregate_bonuses, 
-    _item_display, get_full_stats, format_stats_display, update_user_stats,
-    start_auto_check_loop
+    _get_equips, _set_equips, _gear_bonuses,
+    _item_display, get_full_stats, update_user_stats,
+    start_auto_check_loop, apply_stat_bonus, remove_stat_bonus
 )
 
 # ---- Discord ----
@@ -1460,10 +1460,6 @@ async def stats(ctx, member: discord.Member = None):
 
     await ctx.send(embed=embed)
 
-import random
-import discord
-from discord.ext import commands
-
 @bot.command(name="attack", help="Tấn công người chơi khác (Text Fight).")
 async def attack(ctx, target: discord.Member):
     """Thực hiện 1 đòn đánh thường giữa hai người chơi."""
@@ -1530,6 +1526,99 @@ async def attack(ctx, target: discord.Member):
         msg += f"\n💀 **{target.display_name}** đã bị hạ gục!"
 
     await ctx.reply(msg)
+
+@bot.command(name="equip", help="Trang bị một vật phẩm từ túi đồ của bạn.")
+async def equip(ctx, *, item_name: str = None):
+    user_id = str(ctx.author.id)
+    if not item_name:
+        await ctx.send("⚠️ Vui lòng nhập tên vật phẩm bạn muốn trang bị.")
+        return
+
+    # --- Kiểm tra vật phẩm hợp lệ ---
+    if item_name not in shop_data:
+        await ctx.send(f"❌ Vật phẩm `{item_name}` không tồn tại trong shop.")
+        return
+
+    item = shop_data[item_name]
+    if not item.get("gear", False):
+        await ctx.send(f"❌ `{_item_display(item_name)}` không phải là vật phẩm có thể trang bị.")
+        return
+
+    # --- Lấy thông tin người chơi ---
+    user = users_col.find_one({"_id": user_id}, {"items": 1})
+    if not user:
+        await ctx.send("⚠️ Bạn chưa có dữ liệu người chơi.")
+        return
+
+    items = user.get("items", {})
+    if item_name not in items or items[item_name] <= 0:
+        await ctx.send(f"❌ Bạn không có **{_item_display(item_name)}** trong túi!")
+        return
+
+    # --- Lấy danh sách trang bị hiện tại ---
+    equips = _get_equips(user_id)
+    if item_name in equips:
+        await ctx.send(f"Bạn đã trang bị **{_item_display(item_name)}** rồi!")
+        return
+
+    # --- Tìm slot trống ---
+    try:
+        empty_slot = equips.index(None)
+    except ValueError:
+        empty_slot = -1
+    if empty_slot == -1:
+        await ctx.send("Bạn đã đầy 3 ô trang bị! Hãy tháo một món trước khi trang bị mới.")
+        return
+
+    # --- Cộng chỉ số vật phẩm ---
+    bonus = _gear_bonuses(item_name)
+    apply_stat_bonus(user_id, bonus)
+
+    # --- Gán trang bị vào slot ---
+    equips[empty_slot] = item_name
+    _set_equips(user_id, equips)
+
+    # --- Trừ vật phẩm khỏi túi ---
+    items[item_name] -= 1
+    if items[item_name] <= 0:
+        del items[item_name]
+    users_col.update_one({"_id": user_id}, {"$set": {"items": items}})
+
+    await ctx.send(
+        f"Bạn đã trang bị **{_item_display(item_name)}** vào ô **#{empty_slot + 1}**!\n"
+    )
+
+@bot.command(name="unequip", help="Tháo trang bị ở một ô (1–3) và trả lại vào túi.")
+async def unequip(ctx, slot: int = None):
+    user_id = str(ctx.author.id)
+    if slot not in (1, 2, 3):
+        await ctx.send("⚠️ Hãy nhập số ô hợp lệ (1, 2 hoặc 3).")
+        return
+
+    equips = _get_equips(user_id)
+    item_name = equips[slot - 1]
+
+    if not item_name:
+        await ctx.send(f"Ô **#{slot}** hiện đang trống.")
+        return
+
+    # --- Trừ chỉ số của vật phẩm ---
+    bonus = _gear_bonuses(item_name)
+    remove_stat_bonus(user_id, bonus)
+
+    # --- Tháo vật phẩm ---
+    equips[slot - 1] = None
+    _set_equips(user_id, equips)
+
+    # --- Trả lại vật phẩm vào túi ---
+    user = users_col.find_one({"_id": user_id}, {"items": 1}) or {}
+    items = user.get("items", {})
+    items[item_name] = items.get(item_name, 0) + 1
+    users_col.update_one({"_id": user_id}, {"$set": {"items": items}})
+
+    await ctx.send(
+        f"Bạn đã tháo **{_item_display(item_name)}** khỏi ô **#{slot}**.\n"
+    )
 
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):

@@ -74,11 +74,6 @@ def update_user(user_id: str, update_dict: Dict[str, Any]) -> None:
     update_payload = update_dict if has_operator else {"$set": update_dict}
     users_col.update_one({"_id": user_id}, update_payload, upsert=True)
 
-def save_user_full(user_id: str, full_data: Dict[str, Any]) -> None:
-    full_data = dict(full_data or {})
-    full_data["_id"] = user_id
-    users_col.replace_one({"_id": user_id}, full_data, upsert=True)
-
 # === JACKPOT HELPERS ===
 def get_jackpot() -> Optional[int]:
     doc = config_col.find_one({"_id": "jackpot"})
