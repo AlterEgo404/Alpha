@@ -19,13 +19,13 @@
   },
   "04": {
     "name": ":lock: Ổ khóa",
-    "price": 300000,
+    "price": 50000,
     "description": "Giúp cho tài khoản của bạn an toàn hơn.",
     "gear": false
   },
   "05": {
     "name": ":wrench: Kìm",
-    "price": 500000,
+    "price": 200000,
     "description": "Bẻ khóa nhưng hiệu quả đéo cao đâu.",
     "gear": false
   },
