@@ -248,6 +248,21 @@ async def auto_check_life_and_death():
                 }
             )
 
+async def reapply_equipment_stats():
+    """Tự động cộng lại chỉ số từ trang bị khi bot khởi động."""
+    for user in users_col.find({}, {"_id": 1, "fight_equips": 1}):
+        user_id = user["_id"]
+        equips = user.get("fight_equips", [])
+        for item_key in equips:
+            if not item_key:
+                continue
+            item = shop_data.get(item_key)
+            if not item:
+                continue
+            bonus = item.get("stats", {})
+            apply_stat_bonus(user_id, bonus)
+    print("✅ Đã tự động cộng lại chỉ số từ toàn bộ trang bị khi khởi động bot.")
+
 def start_auto_check_loop(bot):
     """Khởi động vòng kiểm tra tự động khi bot sẵn sàng."""
     if not auto_check_life_and_death.is_running():
