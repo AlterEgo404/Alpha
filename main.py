@@ -1404,20 +1404,21 @@ async def stats(ctx, member: discord.Member = None):
     # --- Lấy dữ liệu từ MongoDB ---
     tf = get_full_stats(user_id)
 
-    hp = f"{tf['hp']}/{tf['max_hp']}"
-    mana = f"{tf['mana']}/{tf['max_mana']}"
-    ad = tf['ad']
-    ap = tf['ap']
-    armor = tf['armor']
-    magic_resist = tf['magic_resist']
-    attack_speed = tf['attack_speed']
-    crit_rate = round(tf['crit_rate'] * 100, 1)
-    crit_damage = round(tf['crit_damage'] * 100, 1)
-    lifesteal = round(tf['lifesteal'] * 100, 1)
-    amplify = round(tf['amplify'] * 100, 1)
-    resistance = round(tf['resistance'] * 100, 1)
+    # Đảm bảo không lỗi nếu thiếu trường
+    hp = f"{tf.get('hp', 0)}/{tf.get('max_hp', 0)}"
+    mana = f"{tf.get('mana', 0)}/{tf.get('max_mana', 0)}"
+    ad = tf.get('ad', 0)
+    ap = tf.get('ap', 0)
+    armor = tf.get('armor', 0)
+    magic_resist = tf.get('magic_resist', 0)
+    attack_speed = tf.get('attack_speed', 0)
+    crit_rate = round(tf.get('crit_rate', 0) * 100, 1)
+    crit_damage = round(tf.get('crit_damage', 0) * 100, 1)
+    lifesteal = round(tf.get('lifesteal', 0) * 100, 1)
+    amplify = round(tf.get('amplify', 0) * 100, 1)
+    resistance = round(tf.get('resistance', 0) * 100, 1)
 
-    equips = tf.get("equips", [])
+    equips = tf.get("equips", [None, None, None])
 
     # --- Chuỗi hiển thị chính ---
     stats_text = (
@@ -1432,8 +1433,9 @@ async def stats(ctx, member: discord.Member = None):
         color=discord.Color.red()
     )
 
+    # --- Hiển thị 3 ô trang bị ---
     for i in range(3):
-        item = equips[i] if i < len(equips) and equips[i] else None
+        item = equips[i]
         embed.add_field(
             name=f"",
             value=_item_display(item) if item else ":black_large_square:",
@@ -1441,24 +1443,28 @@ async def stats(ctx, member: discord.Member = None):
         )
     embed.add_field(name="", value="", inline=False)
 
-    embed.add_field(name = f"<:BasicDamage:1428307672574459914>", value = f"{ad}", inline = True)
-    embed.add_field(name = f"<:AD:1426154602335698974>", value = f"{ad}", inline = True)
-    embed.add_field(name = f"<:AP:1426153499766427679>", value = f"{ap}", inline = True)
+    # --- Hàng 1: ST cơ bản, AD, AP ---
+    embed.add_field(name="<:BasicDamage:1428307672574459914>", value=f"{ad}", inline=True)
+    embed.add_field(name="<:AD:1426154602335698974>", value=f"{ad}", inline=True)
+    embed.add_field(name="<:AP:1426153499766427679>", value=f"{ap}", inline=True)
     embed.add_field(name="", value="", inline=False)
 
-    embed.add_field(name = f"<:Armor:1426153517609127966>", value = f"{armor}", inline = True)
-    embed.add_field(name = f"<:MagicResist:1426153593148411934>", value = f"{magic_resist}", inline = True)
-    embed.add_field(name = f"<:AS:1426153532620279951>", value = f"{attack_speed}", inline = True)
+    # --- Hàng 2: Giáp, kháng phép, tốc đánh ---
+    embed.add_field(name="<:Armor:1426153517609127966>", value=f"{armor}", inline=True)
+    embed.add_field(name="<:MagicResist:1426153593148411934>", value=f"{magic_resist}", inline=True)
+    embed.add_field(name="<:AS:1426153532620279951>", value=f"{attack_speed}", inline=True)
     embed.add_field(name="", value="", inline=False)
 
-    embed.add_field(name = f"<:CritChance:1426153545131884617>", value = f"{crit_rate}%", inline = True)
-    embed.add_field(name = f"<:CritDamage:1426153557798944849>", value = f"{crit_damage}%", inline = True)
-    embed.add_field(name = f"<:scaleSV:1426154642676646039>", value = f"{lifesteal}%", inline = True)
+    # --- Hàng 3: Crit, ST Crit, Hút máu ---
+    embed.add_field(name="<:CritChance:1426153545131884617>", value=f"{crit_rate}%", inline=True)
+    embed.add_field(name="<:CritDamage:1426153557798944849>", value=f"{crit_damage}%", inline=True)
+    embed.add_field(name="<:scaleSV:1426154642676646039>", value=f"{lifesteal}%", inline=True)
     embed.add_field(name="", value="", inline=False)
-    
-    embed.add_field(name = f"<:scaleDA:1426153627281526886>", value = f"{amplify}%", inline = True)
-    embed.add_field(name = f"<:scaleDR:1426153642527817799>", value = f"{resistance}%", inline = True)
-    embed.add_field(name = f"<:scalemanaregen:1426483869120594070>", value = f"0", inline = True)
+
+    # --- Hàng 4: Khuếch đại, Chống chịu, Mana Regen ---
+    embed.add_field(name="<:scaleDA:1426153627281526886>", value=f"{amplify}%", inline=True)
+    embed.add_field(name="<:scaleDR:1426153642527817799>", value=f"{resistance}%", inline=True)
+    embed.add_field(name="<:scalemanaregen:1426483869120594070>", value=f"0", inline=True)
 
     await ctx.send(embed=embed)
 
