@@ -1399,73 +1399,69 @@ async def study(ctx):
 # === Text fight ===
 @bot.command(name="stats", help="Hiển thị chỉ số chiến đấu của bạn hoặc người khác.")
 async def stats(ctx, member: discord.Member = None):
+    """Hiển thị chỉ số Text Fight của bản thân hoặc người khác."""
     member = member or ctx.author
     user_id = str(member.id)
 
     # --- Lấy dữ liệu từ MongoDB ---
     tf = get_full_stats(user_id)
 
-    # Đảm bảo không lỗi nếu thiếu trường
-    hp = f"{tf.get('hp', 0)}/{tf.get('max_hp', 0)}"
-    mana = f"{tf.get('mana', 0)}/{tf.get('max_mana', 0)}"
+    # --- Lấy chỉ số cơ bản ---
+    hp = f"{int(tf.get('hp', 0))}/{int(tf.get('max_hp', 0))}"
+    mana = f"{int(tf.get('mana', 0))}/{int(tf.get('max_mana', 0))}"
+    basic_damage = tf.get('basic_damage', 0)
     ad = tf.get('ad', 0)
     ap = tf.get('ap', 0)
     armor = tf.get('armor', 0)
     magic_resist = tf.get('magic_resist', 0)
-    attack_speed = tf.get('attack_speed', 0)
+    attack_speed = round(tf.get('attack_speed', 0), 2)
     crit_rate = round(tf.get('crit_rate', 0) * 100, 1)
     crit_damage = round(tf.get('crit_damage', 0) * 100, 1)
     lifesteal = round(tf.get('lifesteal', 0) * 100, 1)
     amplify = round(tf.get('amplify', 0) * 100, 1)
     resistance = round(tf.get('resistance', 0) * 100, 1)
-
     equips = tf.get("equips", [None, None, None])
 
-    # --- Chuỗi hiển thị chính ---
-    stats_text = (
-        f"**HP:** {hp} <:Health:1426153576249430079>\n"
-        f"**Mana:** {mana} <:Mana:1426153608361279558>\n"
-    )
+    # --- Kiểm tra trạng thái sống/chết ---
+    status_icon = "💀" if tf.get("hp", 0) <= 0 else "❤️"
 
     # --- Embed hiển thị ---
     embed = discord.Embed(
-        title=f"⚔️ Chỉ số chiến đấu của {member.display_name}",
-        description=stats_text,
+        title=f"{status_icon} Chỉ số chiến đấu của {member.display_name}",
         color=discord.Color.red()
     )
 
+    # --- Hàng 1: HP & Mana ---
+    embed.add_field(name="HP", value=f"{hp} <:Health:1426153576249430079>", inline=True)
+    embed.add_field(name="Mana", value=f"{mana} <:Mana:1426153608361279558>", inline=True)
+    embed.add_field(name="\u200b", value="\u200b", inline=True)
+
+    # --- Hàng 2: Sức tấn công cơ bản + AD + AP ---
+    embed.add_field(name="<:BasicDamage:1428307672574459914> ST Cơ bản", value=f"{basic_damage}", inline=True)
+    embed.add_field(name="<:AD:1426154602335698974> Vật lý", value=f"{ad}", inline=True)
+    embed.add_field(name="<:AP:1426153499766427679> Phép", value=f"{ap}", inline=True)
+
+    # --- Hàng 3: Phòng thủ ---
+    embed.add_field(name="<:Armor:1426153517609127966> Giáp", value=f"{armor}", inline=True)
+    embed.add_field(name="<:MagicResist:1426153593148411934> Kháng phép", value=f"{magic_resist}", inline=True)
+    embed.add_field(name="<:AS:1426153532620279951> Tốc đánh", value=f"{attack_speed}", inline=True)
+
+    # --- Hàng 4: Crit, Lifesteal ---
+    embed.add_field(name="<:CritChance:1426153545131884617> Tỷ lệ chí mạng", value=f"{crit_rate}%", inline=True)
+    embed.add_field(name="<:CritDamage:1426153557798944849> Sát thương chí mạng", value=f"{crit_damage}%", inline=True)
+    embed.add_field(name="<:scaleSV:1426154642676646039> Hút máu", value=f"{lifesteal}%", inline=True)
+
+    # --- Hàng 5: Khuếch đại, Chống chịu ---
+    embed.add_field(name="<:scaleDA:1426153627281526886> Khuếch đại", value=f"{amplify}%", inline=True)
+    embed.add_field(name="<:scaleDR:1426153642527817799> Chống chịu", value=f"{resistance}%", inline=True)
+    embed.add_field(name="<:scalemanaregen:1426483869120594070> Hồi mana", value="0%", inline=True)
+
     # --- Hiển thị 3 ô trang bị ---
+    equip_display = ""
     for i in range(3):
         item = equips[i]
-        embed.add_field(
-            name=f"",
-            value=_item_display(item) if item else ":black_large_square:",
-            inline=True
-        )
-    embed.add_field(name="", value="", inline=False)
-
-    # --- Hàng 1: ST cơ bản, AD, AP ---
-    embed.add_field(name="<:BasicDamage:1428307672574459914>", value=f"{ad}", inline=True)
-    embed.add_field(name="<:AD:1426154602335698974>", value=f"{ad}", inline=True)
-    embed.add_field(name="<:AP:1426153499766427679>", value=f"{ap}", inline=True)
-    embed.add_field(name="", value="", inline=False)
-
-    # --- Hàng 2: Giáp, kháng phép, tốc đánh ---
-    embed.add_field(name="<:Armor:1426153517609127966>", value=f"{armor}", inline=True)
-    embed.add_field(name="<:MagicResist:1426153593148411934>", value=f"{magic_resist}", inline=True)
-    embed.add_field(name="<:AS:1426153532620279951>", value=f"{attack_speed}", inline=True)
-    embed.add_field(name="", value="", inline=False)
-
-    # --- Hàng 3: Crit, ST Crit, Hút máu ---
-    embed.add_field(name="<:CritChance:1426153545131884617>", value=f"{crit_rate}%", inline=True)
-    embed.add_field(name="<:CritDamage:1426153557798944849>", value=f"{crit_damage}%", inline=True)
-    embed.add_field(name="<:scaleSV:1426154642676646039>", value=f"{lifesteal}%", inline=True)
-    embed.add_field(name="", value="", inline=False)
-
-    # --- Hàng 4: Khuếch đại, Chống chịu, Mana Regen ---
-    embed.add_field(name="<:scaleDA:1426153627281526886>", value=f"{amplify}%", inline=True)
-    embed.add_field(name="<:scaleDR:1426153642527817799>", value=f"{resistance}%", inline=True)
-    embed.add_field(name="<:scalemanaregen:1426483869120594070>", value=f"0", inline=True)
+        equip_display += f"**Slot {i+1}:** {_item_display(item) if item else ':black_large_square:'}\n"
+    embed.add_field(name="🎒 Trang bị", value=equip_display.strip(), inline=False)
 
     await ctx.send(embed=embed)
 
@@ -1541,7 +1537,10 @@ async def attack(ctx, target: discord.Member):
 
 @bot.command(name="equip", help="Trang bị vật phẩm bằng key trong shop_data.json (VD: $equip 11)")
 async def equip(ctx, item_key: str = None):
+    """Trang bị vật phẩm (text fight gear)."""
     user_id = str(ctx.author.id)
+
+    # --- Kiểm tra input ---
     if not item_key:
         await ctx.send("⚠️ Vui lòng nhập **key** của vật phẩm (VD: `$equip 11`).")
         return
@@ -1556,37 +1555,28 @@ async def equip(ctx, item_key: str = None):
         return
 
     # --- Lấy dữ liệu người chơi ---
-    user = users_col.find_one({"_id": user_id}, {"items": 1})
-    if not user:
-        await ctx.send("⚠️ Bạn chưa có dữ liệu người chơi.")
-        return
-
+    user = users_col.find_one({"_id": user_id}, {"items": 1, "fight_equips": 1}) or {}
     items = user.get("items", {})
-    item_name = item["name"]
-
-    # --- Kiểm tra xem người chơi có vật phẩm đó không ---
-    if items.get(item_name, 0) <= 0:
-        await ctx.send(f"Bạn không còn `{item_name}` trong túi để trang bị!")
-        return
-
-    # --- Lấy danh sách trang bị ---
     equips = _get_equips(user_id)
 
-    # --- Tìm slot trống ---
+    item_name = item["name"]
+
+    # --- Kiểm tra người chơi có item ---
+    if items.get(item_name, 0) <= 0:
+        await ctx.send(f"Bạn không có `{item_name}` trong túi để trang bị!")
+        return
+
+    # --- Kiểm tra slot trống ---
     try:
         empty_slot = equips.index(None)
     except ValueError:
         empty_slot = -1
 
     if empty_slot == -1:
-        await ctx.send("Bạn đã đầy 3 ô trang bị! Hãy tháo một món trước khi trang bị mới.")
+        await ctx.send("❌ Bạn đã đầy 3 ô trang bị! Hãy tháo một món trước khi trang bị mới.")
         return
 
-    # --- Cộng chỉ số từ vật phẩm ---
-    bonus = item.get("stats", {})
-    apply_stat_bonus(user_id, bonus)
-
-    # --- Gán vật phẩm vào slot bằng KEY ---
+    # --- Trang bị vật phẩm ---
     equips[empty_slot] = item_key
     _set_equips(user_id, equips)
 
@@ -1594,43 +1584,59 @@ async def equip(ctx, item_key: str = None):
     items[item_name] -= 1
     if items[item_name] <= 0:
         del items[item_name]
-    users_col.update_one({"_id": user_id}, {"$set": {"items": items}})
+
+    users_col.update_one(
+        {"_id": user_id},
+        {"$set": {"items": items}},
+        upsert=False
+    )
 
     await ctx.send(
-        f"Bạn đã trang bị **{_item_display(item_key)}** vào ô **#{empty_slot + 1}**!\n"
+        f"✅ Bạn đã trang bị **{_item_display(item_key)}** vào ô **#{empty_slot + 1}**!\n"
+        f"Chỉ số của bạn sẽ được cập nhật tự động."
     )
 
 @bot.command(name="unequip", help="Tháo vật phẩm khỏi ô trang bị (1-3).")
 async def unequip(ctx, slot: int = None):
+    """Tháo trang bị từ ô chỉ định."""
     user_id = str(ctx.author.id)
+
     if slot is None or not (1 <= slot <= 3):
-        await ctx.send("⚠️ Vui lòng nhập số ô trang bị (1-3).")
+        await ctx.send("⚠️ Vui lòng nhập số ô hợp lệ (1-3).")
         return
 
     equips = _get_equips(user_id)
     item_key = equips[slot - 1]
-    item = shop_data.get(item_key)
 
     if not item_key:
         await ctx.send(f"⚠️ Ô {slot} hiện đang trống, không có gì để tháo.")
         return
 
-    # --- Trừ chỉ số ---
-    bonus = item.get("stats", {})
-    remove_stat_bonus(user_id, bonus)
+    item = shop_data.get(item_key)
+    if not item:
+        await ctx.send("⚠️ Vật phẩm này không còn tồn tại trong shop_data.json!")
+        return
 
-    # --- Xóa vật phẩm khỏi slot ---
+    # --- Xóa trang bị khỏi slot ---
     equips[slot - 1] = None
     _set_equips(user_id, equips)
 
-    # --- Trả vật phẩm lại túi ---
+    # --- Trả lại vật phẩm vào túi ---
     user = users_col.find_one({"_id": user_id}, {"items": 1}) or {}
     items = user.get("items", {})
     item_name = item["name"]
     items[item_name] = items.get(item_name, 0) + 1
-    users_col.update_one({"_id": user_id}, {"$set": {"items": items}})
 
-    await ctx.send(f"Bạn đã tháo **{_item_display(item_key)}** khỏi ô **#{slot}** và trả lại vào túi.")
+    users_col.update_one(
+        {"_id": user_id},
+        {"$set": {"items": items}},
+        upsert=False
+    )
+
+    await ctx.send(
+        f"🧰 Bạn đã tháo **{_item_display(item_key)}** khỏi ô **#{slot}** và trả lại vào túi.\n"
+        f"Chỉ số của bạn sẽ được tự động cập nhật."
+    )
 
 @bot.command(name="clear")
 async def clear_messages(ctx, amount: int):
