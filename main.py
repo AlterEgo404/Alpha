@@ -1536,7 +1536,7 @@ async def attack(ctx, target: discord.Member):
 
     await ctx.reply(msg)
 
-@bot.command(name="equip", help="Trang bị vật phẩm bằng key trong shop_data.json (VD: $equip 11)")
+@bot.command(name="equ1ip", help="Trang bị vật phẩm bằng key trong shop_data.json (VD: $equip 11)")
 async def equip(ctx, item_key: str = None):
     user_id = str(ctx.author.id)
     if not item_key:
