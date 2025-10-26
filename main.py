@@ -42,8 +42,7 @@ from data_handler import (
 from fight import (
     _get_equips, _set_equips, _gear_bonuses,
     _item_display, get_full_stats, update_user_stats,
-    auto_check_life_and_death, apply_stat_bonus, remove_stat_bonus,
-    reapply_equipment_stats
+    auto_check_life_and_death, apply_stat_bonus, remove_stat_bonus
 )
 
 # ---- Discord ----
