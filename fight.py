@@ -222,19 +222,19 @@ def update_user_stats(user_id: str, data: dict):
     except Exception as e:
         print(f"[MongoDB] ❌ Lỗi cập nhật user {user_id}: {e}")
 
-# === AUTO CHECK LIFE/DEATH ===
+# === AUTO CHECK hp/DEATH ===
 @tasks.loop(seconds=10)
-async def auto_check_life_and_death():
+async def auto_check_hp_and_death():
     """Kiểm tra trạng thái sinh tử mỗi 10 giây."""
     now = datetime.now()
-    for user in users_col.find({}, {"life": 1, "max_life": 1, "death": 1, "death_time": 1}):
+    for user in users_col.find({}, {"hp": 1, "max_hp": 1, "death": 1, "death_time": 1}):
         user_id = user["_id"]
-        life = user.get("life", 0)
+        hp = user.get("hp", 0)
         death = user.get("death", False)
         death_time = user.get("death_time")
-        max_life = user.get("max_life", 100)
+        max_hp = user.get("max_hp", 100)
 
-        if life <= 0 and not death:
+        if hp <= 0 and not death:
             users_col.update_one(
                 {"_id": user_id},
                 {"$set": {"death": True, "death_time": now + timedelta(hours=1)}}
@@ -243,7 +243,7 @@ async def auto_check_life_and_death():
             users_col.update_one(
                 {"_id": user_id},
                 {
-                    "$set": {"death": False, "life": max_life},
+                    "$set": {"death": False, "hp": max_hp},
                     "$unset": {"death_time": ""}
                 }
             )
@@ -265,5 +265,5 @@ async def reapply_equipment_stats():
 
 def start_auto_check_loop(bot):
     """Khởi động vòng kiểm tra tự động khi bot sẵn sàng."""
-    if not auto_check_life_and_death.is_running():
-        auto_check_life_and_death.start()
+    if not auto_check_hp_and_death.is_running():
+        auto_check_hp_and_death.start()
