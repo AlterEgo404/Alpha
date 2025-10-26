@@ -214,19 +214,28 @@ def get_full_stats(user_id: str) -> Dict:
 
 # === UPDATE USER ===
 def update_user_stats(user_id: str, data: dict):
-    """Cập nhật dữ liệu Text Fight của người chơi."""
-    if not data:
+    """Cập nhật các chỉ số trong text_fight của người chơi."""
+    if not isinstance(data, dict) or not data:
         return
+
     try:
-        users_col.update_one({"_id": user_id}, {"$set": data}, upsert=True)
+        # Cập nhật vào các trường con trong text_fight
+        update_data = {f"text_fight.{k}": v for k, v in data.items()}
+
+        users_col.update_one(
+            {"_id": user_id},
+            {"$set": update_data},
+            upsert=False  # không tạo user mới nếu chưa có
+        )
+
     except Exception as e:
-        print(f"[MongoDB] ❌ Lỗi cập nhật user {user_id}: {e}")
+        print(f"[MongoDB] ❌ Lỗi cập nhật chỉ số Text Fight của user {user_id}: {e}")
 
 # === AUTO CHECK hp/DEATH ===
 @tasks.loop(minutes=1)  # kiểm tra mỗi phút thay vì 10 giây (nhẹ hơn)
 async def auto_check_life_and_death():
     """Kiểm tra trạng thái sinh tử của người chơi (theo text_fight)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.datetime.now()
 
     try:
         # Chỉ lấy những người có khả năng thay đổi trạng thái (tối ưu)

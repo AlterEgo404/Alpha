@@ -1471,7 +1471,7 @@ async def stats(ctx, member: discord.Member = None):
 
 @bot.command(name="attack", help="Tấn công người chơi khác (Text Fight).")
 async def attack(ctx, target: discord.Member):
-    """Thực hiện 1 đòn đánh thường giữa hai người chơi."""
+    """Thực hiện một đòn đánh thường giữa hai người chơi."""
     attacker = ctx.author
     if target.id == attacker.id:
         await ctx.send("❌ Bạn không thể tự tấn công chính mình!")
@@ -1480,7 +1480,7 @@ async def attack(ctx, target: discord.Member):
     attacker_id = str(attacker.id)
     target_id = str(target.id)
 
-    # --- Lấy dữ liệu ---
+    # --- Lấy dữ liệu người chơi ---
     try:
         attacker_data = get_full_stats(attacker_id)
         target_data = get_full_stats(target_id)
@@ -1488,55 +1488,58 @@ async def attack(ctx, target: discord.Member):
         await ctx.send(f"❌ Không thể lấy dữ liệu người chơi: {e}")
         return
 
-    # --- Các chỉ số cần thiết ---
-    basic_damage = attacker_data["basic_damage"]
-    AS = attacker_data["attack_speed"]
-    crit_rate = attacker_data["crit_rate"]
-    crit_damage = attacker_data["crit_damage"]
-    lifesteal = attacker_data["lifesteal"]
+    # --- Lấy các chỉ số cần thiết ---
+    basic_damage = attacker_data.get("basic_damage", 0)
+    attack_speed = attacker_data.get("attack_speed", 1)
+    crit_rate = attacker_data.get("crit_rate", 0)
+    crit_damage = attacker_data.get("crit_damage", 2)
+    lifesteal = attacker_data.get("lifesteal", 0)
 
-    armor = target_data["armor"]
-    resistance = target_data["resistance"]
+    armor = target_data.get("armor", 0)
+    resistance = target_data.get("resistance", 0)
+
+    attacker_hp = attacker_data.get("hp", 0)
+    attacker_max_hp = attacker_data.get("max_hp", 0)
+    target_hp = target_data.get("hp", 0)
+    target_max_hp = target_data.get("max_hp", 0)
 
     # --- Tính sát thương ---
-    damage = basic_damage * AS
+    damage = basic_damage * attack_speed
     is_crit = False
-
     if random.random() < crit_rate:
         damage *= crit_damage
         is_crit = True
 
-    # --- Giảm sát thương bởi giáp ---
+    # --- Giảm sát thương bởi giáp (armor) ---
     damage *= (100 / (100 + armor))
     damage = round(damage)
 
     # --- Áp dụng sát thương ---
-    target_data["hp"] -= damage
-    if target_data["hp"] < 0:
-        target_data["hp"] = 0
+    new_target_hp = max(target_hp - damage, 0)
 
-    # --- Hút máu ---
+    # --- Hút máu (lifesteal) ---
     heal = round(damage * lifesteal)
-    if heal > 0:
-        attacker_data["hp"] = min(attacker_data["hp"] + heal, attacker_data["max_hp"])
+    new_attacker_hp = min(attacker_hp + heal, attacker_max_hp)
 
     # --- Cập nhật MongoDB ---
-    update_user_stats(attacker_id, attacker_data)
-    update_user_stats(target_id, target_data)
+    update_user_stats(attacker_id, {"hp": new_attacker_hp})
+    update_user_stats(target_id, {"hp": new_target_hp})
 
     # --- Tạo tin nhắn kết quả ---
     msg = (
         f"⚔️ **{attacker.display_name}** tấn công **{target.display_name}**!\n"
         f"🗡️ Gây **{damage}** sát thương"
     )
+    if is_crit:
+        msg += " 💥 (Chí mạng!)"
 
     # --- Kiểm tra tử vong ---
-    if target_data["hp"] <= 0:
+    if new_target_hp <= 0:
         msg += f"\n💀 **{target.display_name}** đã bị hạ gục!"
 
     await ctx.reply(msg)
 
-@bot.command(name="equ1ip", help="Trang bị vật phẩm bằng key trong shop_data.json (VD: $equip 11)")
+@bot.command(name="equip", help="Trang bị vật phẩm bằng key trong shop_data.json (VD: $equip 11)")
 async def equip(ctx, item_key: str = None):
     user_id = str(ctx.author.id)
     if not item_key:
