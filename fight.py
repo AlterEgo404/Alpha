@@ -223,30 +223,60 @@ def update_user_stats(user_id: str, data: dict):
         print(f"[MongoDB] ❌ Lỗi cập nhật user {user_id}: {e}")
 
 # === AUTO CHECK hp/DEATH ===
-@tasks.loop(seconds=10)
-async def auto_check_hp_and_death():
-    """Kiểm tra trạng thái sinh tử mỗi 10 giây."""
-    now = datetime.now()
-    for user in users_col.find({}, {"hp": 1, "max_hp": 1, "death": 1, "death_time": 1}):
-        user_id = user["_id"]
-        hp = user.get("hp", 0)
-        death = user.get("death", False)
-        death_time = user.get("death_time")
-        max_hp = user.get("max_hp", 100)
+@tasks.loop(minutes=1)  # kiểm tra mỗi phút thay vì 10 giây (nhẹ hơn)
+async def auto_check_life_and_death():
+    """Kiểm tra trạng thái sinh tử của người chơi (theo text_fight)."""
+    now = datetime.now(timezone.utc)
 
-        if hp <= 0 and not death:
-            users_col.update_one(
-                {"_id": user_id},
-                {"$set": {"death": True, "death_time": now + timedelta(hours=1)}}
-            )
-        elif death and death_time and now >= death_time:
-            users_col.update_one(
-                {"_id": user_id},
-                {
-                    "$set": {"death": False, "hp": max_hp},
-                    "$unset": {"death_time": ""}
-                }
-            )
+    try:
+        # Chỉ lấy những người có khả năng thay đổi trạng thái (tối ưu)
+        cursor = users_col.find(
+            {"$or": [
+                {"text_fight.hp": {"$lte": 0}},  # máu cạn
+                {"death": True}                   # hoặc đã chết
+            ]},
+            {
+                "_id": 1,
+                "text_fight.hp": 1,
+                "text_fight.max_hp": 1,
+                "death": 1,
+                "death_time": 1
+            }
+        )
+
+        for user in cursor:
+            user_id = user["_id"]
+            text_fight = user.get("text_fight", {})
+            hp = text_fight.get("hp", 0)
+            max_hp = text_fight.get("max_hp", 100)
+            death = user.get("death", False)
+            death_time = user.get("death_time")
+
+            # --- Khi người chơi chết ---
+            if hp <= 0 and not death:
+                users_col.update_one(
+                    {"_id": user_id},
+                    {"$set": {
+                        "death": True,
+                        "death_time": now + timedelta(hours=1)
+                    }}
+                )
+
+            # --- Khi người chơi hồi sinh ---
+            elif death and isinstance(death_time, datetime) and now >= death_time:
+                users_col.update_one(
+                    {"_id": user_id},
+                    {
+                        "$set": {
+                            "death": False,
+                            "text_fight.hp": max_hp
+                        },
+                        "$unset": {"death_time": ""}
+                    }
+                )
+
+    except Exception as e:
+        print(f"[auto_check_life_and_death] Lỗi: {e}")
 
 async def reapply_equipment_stats():
     """Tự động cộng lại chỉ số từ trang bị khi bot khởi động."""

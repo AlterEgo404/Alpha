@@ -42,7 +42,7 @@ from data_handler import (
 from fight import (
     _get_equips, _set_equips, _gear_bonuses,
     _item_display, get_full_stats, update_user_stats,
-    start_auto_check_loop, apply_stat_bonus, remove_stat_bonus,
+    auto_check_life_and_death, apply_stat_bonus, remove_stat_bonus,
     reapply_equipment_stats
 )
 
@@ -321,8 +321,9 @@ async def on_ready():
 
     bot.loop.create_task(update_company_balances())
     bot.loop.create_task(clean_zero_items())
-    start_auto_check_loop(bot)
-    await reapply_equipment_stats()
+    if not auto_check_life_and_death.is_running():
+        auto_check_life_and_death.start()
+    print(f"✅ Bot đã khởi động: {bot.user}")
 
 @bot.event
 async def on_command_error(ctx, error):
