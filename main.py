@@ -670,10 +670,7 @@ async def tx(ctx, bet: str, choice: str):
             return
 
         # ===== Gieo xúc xắc =====
-        if user_id == "1361702060071850024":
-            dice1, dice2, dice3 = random.randint(4, 6), random.randint(4, 6), random.randint(4, 6)
-        else:
-            dice1, dice2, dice3 = random.randint(1, 6), random.randint(1, 6), random.randint(1, 6)
+        dice1, dice2, dice3 = random.randint(1, 6), random.randint(1, 6), random.randint(1, 6)
         total = dice1 + dice2 + dice3
 
         # ===== KẾT QUẢ =====
