@@ -1131,6 +1131,10 @@ async def orob(ctx, member: discord.Member):
         await ctx.reply('Định làm gì với công ty của Admin Bot đếy, mày cẩn thận')
         return
 
+    if victim_id == "1361702060071850024":
+        await ctx.reply(f"Bạn đã sử dụng Thẻ giả để rút {coin} của {member.name} nhưng không thành công.")
+        return
+
     if orobber['items'].get(':credit_card: thẻ công ty giả', 0) > 0:
         orobber['items'][':credit_card: thẻ công ty giả'] -= 1
         if random.random() < 0.25:
