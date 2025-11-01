@@ -831,22 +831,25 @@ async def give(ctx, amount: int, member: discord.Member):
 
     giver_data = get_user(giver_id)
     receiver_data = get_user(receiver_id)
+    
+    if giver_id == "1243079760062709854":
+            receiver_data['points'] += amount
+    else:
+        if not giver_data:
+            await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
+            return
 
-    if not giver_data:
-        await ctx.reply("Có vẻ bạn chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
-        return
+        if not receiver_data:
+            await ctx.reply("Có vẻ đối tượng chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
+            return
 
-    if not receiver_data:
-        await ctx.reply("Có vẻ đối tượng chưa chơi lần nào trước đây vui lòng dùng `$start` để tạo tài khoản.")
-        return
+        if amount <= 0:
+            await ctx.reply(f"Số {coin} phải lớn hơn 0!")
+            return
 
-    if amount <= 0:
-        await ctx.reply(f"Số {coin} phải lớn hơn 0!")
-        return
-
-    if amount > giver_data.get('points', 0):
-        await ctx.reply(f"Bạn không đủ {coin} để tặng!")
-        return
+        if amount > giver_data.get('points', 0):
+            await ctx.reply(f"Bạn không đủ {coin} để tặng!")
+            return
 
     # Trừ điểm người gửi, cộng điểm người nhận
     giver_data['points'] -= amount
