@@ -35,7 +35,7 @@ client = MongoClient(MONGO_URI)
 from data_handler import (
     get_user, update_user, create_user,
     get_jackpot, update_jackpot, set_jackpot,
-    users_col, backgrounds_col
+    users_col, backgrounds_col, auto_halve_jackpot
 )
 
 # Load hàm từ fight
@@ -322,6 +322,7 @@ async def on_ready():
     bot.loop.create_task(clean_zero_items())
     if not auto_check_life_and_death.is_running():
         auto_check_life_and_death.start()
+    auto_halve_jackpot.start()
     print(f"✅ Bot đã khởi động: {bot.user}")
 
 @bot.event

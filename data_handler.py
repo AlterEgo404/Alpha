@@ -2,6 +2,8 @@ import os
 from typing import Any, Dict, Optional
 
 from pymongo import MongoClient, ASCENDING
+from datetime import datetime, timedelta
+from discord.ext import tasks
 
 # === KẾT NỐI MONGO ===
 MONGO_URI = os.getenv("MONGO_URI")
@@ -84,3 +86,34 @@ def update_jackpot(amount: int) -> None:
 
 def set_jackpot(value: int) -> None:
     config_col.update_one({"_id": "jackpot"}, {"$set": {"value": int(value)}}, upsert=True)
+
+@tasks.loop(hours=1)
+async def auto_halve_jackpot():
+    """Tự động chia đôi jackpot mỗi 1 giờ."""
+    try:
+        doc = config_col.find_one({"_id": "global_jackpot"}, {"value": 1})
+        if not doc:
+            # Nếu chưa có document jackpot, khởi tạo
+            config_col.insert_one({"_id": "global_jackpot", "value": 0})
+            return
+
+        current_value = doc.get("value", 0)
+        if current_value <= 0:
+            return  # Không cần chia nếu jackpot rỗng hoặc âm
+
+        new_value = int(current_value / 2)
+
+        config_col.update_one(
+            {"_id": "global_jackpot"},
+            {
+                "$set": {
+                    "value": new_value,
+                    "last_decay_time": datetime.datetime.now()
+                }
+            }
+        )
+
+        print(f"[Jackpot] Đã tự động chia đôi jackpot: {current_value} → {new_value}")
+
+    except Exception as e:
+        print(f"[Jackpot] ❌ Lỗi trong auto_halve_jackpot: {e}")
