@@ -252,21 +252,32 @@ async def fetch_image(url: str, timeout_sec: int = 5, cache: bool = True):
 
 # ---- Background tasks ----
 async def update_company_balances():
-    """Cứ 60s: biến động dương/lỗ nhẹ với balance công ty."""
+    """Cứ 60s: biến động ngẫu nhiên từ -5% đến +5% (chỉ số nguyên %)."""
     while True:
         try:
-            cursor = users_col.find({"company_balance": {"$gt": 0}}, {"company_balance": 1})
+            cursor = users_col.find(
+                {"company_balance": {"$gt": 0}},
+                {"company_balance": 1}
+            )
+
             for doc in cursor:
                 uid = doc["_id"]
                 balance = doc.get("company_balance", 0)
-                modifier = random.choice([-0.01, 0.01])
-                new_balance = max(0, int(balance + balance * modifier))
+
+                # Random nguyên từ -5 → 5 (%)
+                percent_change = random.randint(-5, 5)
+
+                # Tính toán số mới
+                new_balance = max(0, int(balance * (1 + percent_change / 100)))
+
                 if new_balance != balance:
                     update_user(uid, {"company_balance": new_balance})
+                    print(f"[COMPANY] {uid} balance {balance:,} → {new_balance:,} ({percent_change:+d}%)")
+
         except Exception:
             traceback.print_exc()
         await asyncio.sleep(60)
-
+        
 async def clean_zero_items():
     """Cứ 10s: xoá item có số lượng <= 0 để gọn DB."""
     while True:
