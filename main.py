@@ -360,23 +360,27 @@ async def on_ready():
 
 @bot.event
 async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
-        await ctx.reply("❌ Lệnh bạn nhập không tồn tại. Vui lòng kiểm tra lại :>")
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.reply("⚠️ Bạn thiếu một tham số cần thiết. Vui lòng kiểm tra lại cú pháp lệnh.")
-    elif isinstance(error, commands.BadArgument):
-        await ctx.reply("❌ Đối số bạn nhập không hợp lệ. Vui lòng kiểm tra lại.")
-    elif isinstance(error, commands.MissingPermissions):
-        await ctx.reply("🚫 Bạn không có quyền sử dụng lệnh này.")
-    elif isinstance(error, commands.CommandOnCooldown):
-        await ctx.reply(f"⏳ Lệnh đang trong thời gian hồi. Thử lại sau `{round(error.retry_after, 1)} giây`.")
-    elif isinstance(error, commands.CheckFailure):
-        await ctx.reply("❗Bạn không được phép sử dụng lệnh này ở đây.")
-    else:
-        # In đầy đủ stacktrace cho dễ debug
-        traceback.print_exc()
-        await ctx.reply("⚠️ Đã xảy ra lỗi không mong muốn. Vui lòng thử lại sau!")
 
+    # chuyển lỗi về dạng chuỗi đúng như {e}
+    e = str(error)
+
+    if isinstance(error, commands.CommandNotFound):
+        await ctx.reply(f"❌ Lệnh bạn nhập không tồn tại.\nĐã xảy ra lỗi: {e}")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.reply(f"⚠️ Thiếu tham số cần thiết.\nĐã xảy ra lỗi: {e}")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.reply(f"❌ Đối số không hợp lệ.\nĐã xảy ra lỗi: {e}")
+    elif isinstance(error, commands.MissingPermissions):
+        await ctx.reply(f"🚫 Bạn không có quyền.\nĐã xảy ra lỗi: {e}")
+    elif isinstance(error, commands.CommandOnCooldown):
+        await ctx.reply(f"⏳ Lệnh đang hồi. Thử lại sau `{round(error.retry_after, 1)} giây`.\nĐã xảy ra lỗi: {e}")
+    elif isinstance(error, commands.CheckFailure):
+        await ctx.reply(f"❗Bạn không được phép dùng lệnh này.\nĐã xảy ra lỗi: {e}")
+    else:
+        # để bạn nhìn thấy lỗi đầy đủ trên console khi debug
+        print(e)
+        await ctx.reply(f"⚠️ Đã xảy ra lỗi không mong muốn.\nĐã xảy ra lỗi: {e}")
+        
 @bot.event
 async def on_close():
     # đóng session HTTP nếu có
