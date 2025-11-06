@@ -690,7 +690,7 @@ async def tx(ctx, bet: str, choice: str):
         lose_protected = False
         win = (3 <= total <= 10 and choice == "x") or (11 <= total <= 18 and choice == "t")
 
-        if bet_val * 500 >= jackpot_amount and total in (3, 18) and jackpot_amount > 0:
+        if bet_val * 1000 >= jackpot_amount and total in (3, 18) and jackpot_amount > 0:
             # Ăn jackpot
             data["points"] += jackpot_amount
             set_jackpot(0)
