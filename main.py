@@ -253,7 +253,7 @@ async def fetch_image(url: str, timeout_sec: int = 5, cache: bool = True):
 # ---- Background tasks ----
 async def update_company_balances():
     """Cứ 60s: biến động ngẫu nhiên từ -5% → +5%, và thuế -10% mỗi giờ."""
-    last_tax_time = datetime.datetime.now()
+    last_tax_time = datetime.now(timezone.utc)
 
     while True:
         try:
@@ -263,7 +263,7 @@ async def update_company_balances():
             )
 
             # --- Kiểm tra thuế mỗi giờ ---
-            now = datetime.datetime.now()
+            now = datetime.now(timezone.utc)
             apply_tax = False
             if (now - last_tax_time) >= timedelta(hours=1):
                 apply_tax = True
@@ -781,7 +781,7 @@ async def daily(ctx):
         return
 
     last_daily = data.get('last_daily')
-    now = datetime.datetime.now()
+    now = datetime.now(timezone.utc)
 
     if last_daily is not None:
         last_daily_date = datetime.datetime.strptime(last_daily, "%Y-%m-%d")
@@ -825,7 +825,7 @@ async def beg(ctx):
         return
 
     last_beg = data.get('last_beg')
-    now = datetime.datetime.now()
+    now = datetime.now(timezone.utc)
 
     if last_beg is not None:
         cooldown_time = 3 * 60  # 3 phút
@@ -936,7 +936,7 @@ async def rob(ctx, member: discord.Member, tool: str = None):
         await ctx.reply("Nó đang online đấy, cẩn thận không nó đấm!")
         return
 
-    now = datetime.datetime.now()
+    now = datetime.now(timezone.utc)
     last_rob = robber_data.get("last_rob")
     if last_rob:
         elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
@@ -1029,7 +1029,7 @@ async def hunt(ctx, weapon: str):
         await ctx.reply("Vũ khí không hợp lệ!")
         return
 
-    now = datetime.datetime.now()
+    now = datetime.now(timezone.utc)
     last_hunt = data.get("last_hunt")
     if last_hunt:
         elapsed = (now - datetime.datetime.strptime(last_hunt, "%Y-%m-%d %H:%M:%S")).total_seconds()
@@ -1137,7 +1137,7 @@ async def orob(ctx, member: discord.Member):
         await ctx.reply("Nạn nhân ko có trong dữ liệu của trò chơi.")
         return
 
-    now = datetime.datetime.now()
+    now = datetime.now(timezone.utc)
     last_rob = orobber.get('last_rob')
     if last_rob:
         time_elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
@@ -1208,7 +1208,7 @@ async def op(ctx, member: discord.Member, creativity: str = None):
         return await ctx.reply("Bạn không thể tự OP chính mình 🤣")
 
     # Cooldown 5 phút
-    now = datetime.datetime.now()
+    now = datetime.now(timezone.utc)
     last_op = oper.get("last_op")
     cooldown_time = 300  # 5 phút
     if last_op:
@@ -1326,7 +1326,7 @@ async def gacha(ctx):
         return
 
     # Kiểm tra cooldown
-    now = datetime.datetime.now()
+    now = datetime.now(timezone.utc)
     last_gacha = user.get('last_gacha')
     if last_gacha:
         time_elapsed = (now - datetime.datetime.strptime(last_gacha, "%Y-%m-%d %H:%M:%S")).total_seconds()
@@ -1395,7 +1395,7 @@ async def study(ctx):
         return
 
     # Cooldown 5 phút
-    now = datetime.datetime.now()
+    now = datetime.now(timezone.utc)
     last_study_str = data.get("last_study")
     cooldown_time = 300  # 5 phút
     if last_study_str:
