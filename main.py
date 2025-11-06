@@ -252,7 +252,9 @@ async def fetch_image(url: str, timeout_sec: int = 5, cache: bool = True):
 
 # ---- Background tasks ----
 async def update_company_balances():
-    """Cứ 60s: biến động ngẫu nhiên từ -5% đến +5% (chỉ số nguyên %)."""
+    """Cứ 60s: biến động ngẫu nhiên từ -5% → +5%, và thuế -10% mỗi giờ."""
+    last_tax_time = datetime.utcnow()
+
     while True:
         try:
             cursor = users_col.find(
@@ -260,22 +262,42 @@ async def update_company_balances():
                 {"company_balance": 1}
             )
 
+            # --- Kiểm tra thuế mỗi giờ ---
+            now = datetime.utcnow()
+            apply_tax = False
+            if (now - last_tax_time) >= timedelta(hours=1):
+                apply_tax = True
+                last_tax_time = now
+                print(f"\n💰 [TAX] Thuế 10% công ty được áp dụng lúc {now.strftime('%H:%M:%S UTC')}")
+
+            # --- Lặp qua từng công ty ---
             for doc in cursor:
                 uid = doc["_id"]
                 balance = doc.get("company_balance", 0)
 
-                # Random nguyên từ -5 → 5 (%)
+                # Biến động ngẫu nhiên -5 → +5%
                 percent_change = random.randint(-5, 5)
+                new_balance = int(balance * (1 + percent_change / 100))
 
-                # Tính toán số mới
-                new_balance = max(0, int(balance * (1 + percent_change / 100)))
+                # Áp dụng thuế nếu đến giờ
+                if apply_tax:
+                    tax_amount = int(new_balance * 0.10)
+                    new_balance -= tax_amount
 
+                # Không âm
+                new_balance = max(0, new_balance)
+
+                # Cập nhật nếu có thay đổi
                 if new_balance != balance:
                     update_user(uid, {"company_balance": new_balance})
-                    print(f"[COMPANY] {uid} balance {balance:,} → {new_balance:,} ({percent_change:+d}%)")
+                    msg = f"[COMPANY] {uid}: {balance:,} → {new_balance:,} ({percent_change:+d}%)"
+                    if apply_tax:
+                        msg += " [đã trừ 10% thuế]"
+                    print(msg)
 
         except Exception:
             traceback.print_exc()
+
         await asyncio.sleep(60)
         
 async def clean_zero_items():
