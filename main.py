@@ -742,7 +742,12 @@ async def tx(ctx, bet: str, choice: str):
         await asyncio.sleep(1)
 
         # ===== Hiển thị kết quả =====
-        msg = f"\n🎉 Bạn ăn JACKPOT **{jackpot_display}**!" if jackpot_won elif not win f"ngu thì chết chứ sao :rofl:" else ""
+        if jackpot_won:
+            msg = f"\n🎉 Bạn ăn JACKPOT **{jackpot_display}**! WTF"
+        elif not win:
+            msg = "ngu thì chết chứ sao :rofl:"
+        else:
+            msg = ""
 
         if 3 <= total <= 10:  # Xỉu
             if choice == "x":
