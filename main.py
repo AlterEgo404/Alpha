@@ -263,7 +263,7 @@ async def update_company_balances():
             )
 
             # --- Kiểm tra thuế mỗi giờ ---
-            now = datetime.utcnow()
+            now = datetime.datetime.now()
             apply_tax = False
             if (now - last_tax_time) >= timedelta(hours=1):
                 apply_tax = True
