@@ -253,7 +253,7 @@ async def fetch_image(url: str, timeout_sec: int = 5, cache: bool = True):
 # ---- Background tasks ----
 async def update_company_balances():
     """Cứ 60s: biến động ngẫu nhiên từ -5% → +5%, và thuế -10% mỗi giờ."""
-    last_tax_time = datetime.utcnow()
+    last_tax_time = datetime.datetime.now()
 
     while True:
         try:
@@ -717,24 +717,12 @@ async def tx(ctx, bet: str, choice: str):
             data["points"] += jackpot_amount
             set_jackpot(0)
             jackpot_won = True
-
         elif win:
             # Thắng
             data["points"] += bet_val
-
         else:
-            # Thua — kiểm tra vật phẩm miễn thua
-            items = data.get("items", {})
-            mooncake_count = items.get(":moon_cake: Đậu xanh", 0)
-
-            if mooncake_count > 0:
-                lose_protected = True
-                items[":moon_cake: Đậu xanh"] = mooncake_count - 1
-                data["items"] = items
-            else:
-                # Không có vật phẩm => mất tiền + góp jackpot
-                data["points"] -= bet_val
-                update_jackpot(bet_val)
+            data["points"] -= bet_val
+            update_jackpot(bet_val)
 
         # ===== Cập nhật DB =====
         update_user(user_id, data)
@@ -754,26 +742,25 @@ async def tx(ctx, bet: str, choice: str):
         await asyncio.sleep(1)
 
         # ===== Hiển thị kết quả =====
-        jackpot_text = f"\n🎉 Bạn ăn JACKPOT **{jackpot_display}**!" if jackpot_won else ""
-        protection_text = "\nBạn đã đổi :moon_cake: đậu xanh để hoàn lại tiền thua" if lose_protected else ""
+        msg = f"\n🎉 Bạn ăn JACKPOT **{jackpot_display}**!" if jackpot_won elif not win f"ngu thì chết chứ sao :rofl:" else ""
 
         if 3 <= total <= 10:  # Xỉu
             if choice == "x":
                 await rolling_message.edit(
-                    content=f"`   ` {dice1_emoji} `Xỉu`\n`  `{dice2_emoji} {dice3_emoji}`$$`{jackpot_text}{protection_text}"
+                    content=f"`   ` {dice1_emoji} `Xỉu`\n`  `{dice2_emoji} {dice3_emoji}`$$` {msg}"
                 )
             else:
                 await rolling_message.edit(
-                    content=f"`   ` {dice1_emoji} `Xỉu`\n`$$`{dice2_emoji} {dice3_emoji}`  `\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:{jackpot_text}{protection_text}"
+                    content=f"`   ` {dice1_emoji} `Xỉu`\n`$$`{dice2_emoji} {dice3_emoji}`  `\nHehe, {ctx.author.mention} {msg}"
                 )
         else:  # Tài
             if choice == "x":
                 await rolling_message.edit(
-                    content=f"`Tài` {dice1_emoji} `   `\n`  `{dice2_emoji} {dice3_emoji}`$$`\nHehe, {ctx.author.mention} ngu thì chết chứ sao :rofl:{jackpot_text}{protection_text}"
+                    content=f"`Tài` {dice1_emoji} `   `\n`  `{dice2_emoji} {dice3_emoji}`$$`\nHehe, {ctx.author.mention} {msg}"
                 )
             else:
                 await rolling_message.edit(
-                    content=f"`Tài` {dice1_emoji} `   `\n`$$`{dice2_emoji} {dice3_emoji}`  `{jackpot_text}{protection_text}"
+                    content=f"`Tài` {dice1_emoji} `   `\n`$$`{dice2_emoji} {dice3_emoji}`  ` {msg}"
                 )
 
     except Exception as e:
