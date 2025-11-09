@@ -777,46 +777,54 @@ async def tx(ctx, bet: str, choice: str):
 
 @bot.command(name="daily", help='`$daily`\n> nhận quà hằng ngày')
 async def daily(ctx):
-
     user_id = str(ctx.author.id)
     data = get_user(user_id)
 
     if not await check_permission(ctx, user_id):
         return
 
-    last_daily = data.get('last_daily')
-    now = datetime.now(timezone.utc)
+    now = datetime.now().date()
 
-    if last_daily is not None:
-        last_daily_date = datetime.datetime.strptime(last_daily, "%Y-%m-%d")
+    last_daily_str = data.get("last_daily")
+    streak = data.get("streak", 0)
 
-        if last_daily_date.date() == now.date():
-            next_daily = last_daily_date + datetime.timedelta(days=1)
-            time_remaining = next_daily - now
+    if last_daily_str:
+        last_daily = datetime.strptime(last_daily_str, "%Y-%m-%d").date()
+
+        if last_daily == now:
+            # Đã nhận hôm nay
+            next_daily = last_daily + timedelta(days=1)
+            time_remaining = datetime.combine(next_daily, datetime.min.time()) - datetime.now()
+
             hours, remainder = divmod(time_remaining.seconds, 3600)
             minutes, seconds = divmod(remainder, 60)
-            await ctx.reply(f"Bạn đã nhận quà hằng ngày rồi. Vui lòng thử lại sau: {hours} giờ {minutes} phút {seconds} giây.")
-            return
 
-        elif (now - last_daily_date).days == 1:
-            data['streak'] = data.get('streak', 0) + 1
+            return await ctx.reply(
+                f"Bạn đã nhận quà hằng ngày rồi. Vui lòng thử lại sau: "
+                f"{hours} giờ {minutes} phút {seconds} giây."
+            )
+
+        elif (now - last_daily).days == 1:
+            streak += 1
         else:
-            data['streak'] = 1
+            streak = 1
     else:
-        data['streak'] = 1
+        streak = 1
+
+    data["streak"] = streak
 
     base_reward = 5000
-    streak_bonus = data['streak'] * 100
+    streak_bonus = streak * 100
     total_reward = base_reward + streak_bonus
 
-    data['points'] = data.get('points', 0) + total_reward
-    data['last_daily'] = now.strftime("%Y-%m-%d")
+    data["points"] = data.get("points", 0) + total_reward
+    data["last_daily"] = now.strftime("%Y-%m-%d")
 
     update_user(user_id, data)
 
     await ctx.reply(
-        f"Bạn đã nhận được {format_currency(total_reward)} {coin}!"
-        f" (Thưởng streak: {streak_bonus} {coin}, chuỗi ngày: {data['streak']} ngày)"
+        f"Bạn đã nhận được {format_currency(total_reward)} {coin}! "
+        f"(Thưởng streak: {format_currency(streak_bonus)} {coin}, chuỗi ngày: {streak} ngày)"
     )
 
 @bot.command(name="beg", help='`$beg`\n> ăn xin')
@@ -828,27 +836,30 @@ async def beg(ctx):
     if not await check_permission(ctx, user_id):
         return
 
-    last_beg = data.get('last_beg')
     now = datetime.now(timezone.utc)
 
-    if last_beg is not None:
-        cooldown_time = 3 * 60  # 3 phút
-        time_elapsed = (now - datetime.datetime.strptime(last_beg, "%Y-%m-%d %H:%M:%S")).total_seconds()
+    last_beg_str = data.get("last_beg")
+    cooldown = 3 * 60  # 3 phút
 
-        if time_elapsed < cooldown_time:
-            minutes, seconds = divmod(int(cooldown_time - time_elapsed), 60)
-            await ctx.reply(f"Bạn đã ăn xin rồi, vui lòng thử lại sau {minutes} phút {seconds} giây.")
-            return
+    if last_beg_str:
+        last_beg = datetime.strptime(last_beg_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        elapsed = (now - last_beg).total_seconds()
 
-    if data.get('points', 0) < 100_000:
-        beg_amount = random.randint(0, 5000)
-        data['points'] = data.get('points', 0) + beg_amount
-    else:
-        await ctx.reply('giàu mà còn đi ăn xin đéo thấy nhục à')
-        return
+        if elapsed < cooldown:
+            remaining = int(cooldown - elapsed)
+            minutes, seconds = divmod(remaining, 60)
+            return await ctx.reply(
+                f"Bạn đã ăn xin rồi, vui lòng thử lại sau {minutes} phút {seconds} giây."
+            )
+
+    # Điều kiện giàu không được ăn xin
+    if data.get('points', 0) >= 100_000:
+        return await ctx.reply('giàu mà còn đi ăn xin đéo thấy nhục à')
+
+    beg_amount = random.randint(0, 5000)
+    data['points'] = data.get('points', 0) + beg_amount
 
     data['last_beg'] = now.strftime("%Y-%m-%d %H:%M:%S")
-
     update_user(user_id, data)
 
     await ctx.reply(f"Bạn đã nhận được {format_currency(beg_amount)} {coin} từ việc ăn xin!")
@@ -942,17 +953,20 @@ async def rob(ctx, member: discord.Member, tool: str = None):
 
     now = datetime.now(timezone.utc)
     last_rob = robber_data.get("last_rob")
+
     if last_rob:
-        elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
+        last_rob_dt = datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        elapsed = (now - last_rob_dt).total_seconds()
+
         if elapsed < 3600:
             skip = robber_data.get("items", {}).get(":fast_forward: Skip", 0)
             if skip > 0:
                 update_user(robber_id, {"$inc": {"items.:fast_forward: Skip": -1}})
                 await ctx.reply("Bạn đã dùng :fast_forward: Skip để bỏ qua thời gian chờ!")
             else:
-                remaining = 3600 - int(elapsed)
-                h, m = divmod(remaining, 60*60)
-                m, s = divmod(m, 60)
+                remaining = int(3600 - elapsed)
+                h, rem = divmod(remaining, 3600)
+                m, s = divmod(rem, 60)
                 await ctx.reply(f"Bạn phải chờ {h} giờ {m} phút {s} giây nữa.")
                 return
 
@@ -1035,8 +1049,11 @@ async def hunt(ctx, weapon: str):
 
     now = datetime.now(timezone.utc)
     last_hunt = data.get("last_hunt")
+
     if last_hunt:
-        elapsed = (now - datetime.datetime.strptime(last_hunt, "%Y-%m-%d %H:%M:%S")).total_seconds()
+        last_hunt_dt = datetime.strptime(last_hunt, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        elapsed = (now - last_hunt_dt).total_seconds()
+
         if elapsed < 300:
             remaining = int(300 - elapsed)
             m, s = divmod(remaining, 60)
@@ -1142,17 +1159,23 @@ async def orob(ctx, member: discord.Member):
         return
 
     now = datetime.now(timezone.utc)
-    last_rob = orobber.get('last_rob')
+    last_rob = robber_data.get("last_rob")
+    cooldown_time = 3600  # 1 giờ
+
     if last_rob:
-        time_elapsed = (now - datetime.datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S")).total_seconds()
-        cooldown_time = 60 * 60
-        if time_elapsed < cooldown_time:
-            if orobber['items'].get(':fast_forward: Skip', 0) > 0:
-                orobber['items'][':fast_forward: Skip'] -= 1
-                await ctx.reply(f"Bạn đã sử dụng :fast_forward: Skip để bỏ qua thời gian chờ!")
+        last_rob_dt = datetime.strptime(last_rob, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        elapsed = (now - last_rob_dt).total_seconds()
+
+        if elapsed < cooldown_time:
+            # Có skip?
+            if robber_data.get('items', {}).get(':fast_forward: Skip', 0) > 0:
+                robber_data['items'][':fast_forward: Skip'] -= 1
+                update_user(robber_id, robber_data)  # nhớ update
+                await ctx.reply("Bạn đã sử dụng :fast_forward: Skip để bỏ qua thời gian chờ!")
             else:
-                minutes, seconds = divmod(int(cooldown_time - time_elapsed), 60)
-                hours, minutes = divmod(minutes, 60)
+                remaining = cooldown_time - int(elapsed)
+                hours, rem = divmod(remaining, 3600)
+                minutes, seconds = divmod(rem, 60)
                 await ctx.reply(f"Bạn phải chờ {hours} giờ {minutes} phút {seconds} giây trước khi cướp lại.")
                 return
 
@@ -1215,12 +1238,15 @@ async def op(ctx, member: discord.Member, creativity: str = None):
     now = datetime.now(timezone.utc)
     last_op = oper.get("last_op")
     cooldown_time = 300  # 5 phút
+
     if last_op:
-        elapsed = (now - datetime.datetime.strptime(last_op, "%Y-%m-%d %H:%M:%S")).total_seconds()
+        last_op_dt = datetime.strptime(last_op, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        elapsed = (now - last_op_dt).total_seconds()
+
         if elapsed < cooldown_time:
-            remain = cooldown_time - elapsed
+            remain = int(cooldown_time - elapsed)
             m, s = divmod(remain, 60)
-            return await ctx.reply(f"⏳ Đang bổ sung kiến thức trong {int(m)} phút {int(s)} giây")
+            return await ctx.reply(f"⏳ Đang bổ sung kiến thức trong {m} phút {s} giây")
 
     # --- Tính tỉ lệ thành công ---
     oper_smart = oper.get("smart", 0)
@@ -1399,20 +1425,27 @@ async def study(ctx):
         return
 
     # Cooldown 5 phút
-    now = datetime.now(timezone.utc)
-    last_study_str = data.get("last_study")
     cooldown_time = 300  # 5 phút
+    now = datetime.now(timezone.utc)
+
+    last_study_str = data.get("last_study")
+
     if last_study_str:
         try:
-            last_study = datetime.datetime.strptime(last_study_str, "%Y-%m-%d %H:%M:%S")
+            # Parse và ép thành UTC datetime có timezone
+            last_study = datetime.strptime(last_study_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
             elapsed = (now - last_study).total_seconds()
+
             if elapsed < cooldown_time:
                 remain = cooldown_time - elapsed
-                m, s = divmod(remain, 60)
-                await ctx.reply(f"⏳ Thời gian nghỉ giải lao còn {int(m)} phút {int(s)} giây")
+                m, s = divmod(int(remain), 60)
+                await ctx.reply(f"⏳ Thời gian nghỉ giải lao còn **{m} phút {s} giây**")
                 return
-        except Exception:
-            pass  # Nếu parse lỗi thì coi như chưa học lần nào
+        except:
+            pass  # Nếu parse lỗi → coi như chưa học lần nào
+
+    # Lưu lại thời gian học
+    data["last_study"] = now.strftime("%Y-%m-%d %H:%M:%S")
 
     # Tăng học vấn
     gain = 10 * books
@@ -1424,9 +1457,6 @@ async def study(ctx):
         creativity = data["items"].get(":bulb: sự sáng tạo", 0)
         data["items"][":bulb: sự sáng tạo"] = creativity + 1
         bonus_msg = "✨ Bạn đã nảy ra **một ý tưởng sáng tạo**!"
-
-    # Lưu lại thời gian học
-    data["last_study"] = now.strftime("%Y-%m-%d %H:%M:%S")
 
     update_user(user_id, data)
 
