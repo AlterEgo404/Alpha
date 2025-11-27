@@ -1167,17 +1167,11 @@ async def orob(ctx, member: discord.Member):
         elapsed = (now - last_rob_dt).total_seconds()
 
         if elapsed < cooldown_time:
-            # Có skip?
-            if robber_data.get('items', {}).get(':fast_forward: Skip', 0) > 0:
-                robber_data['items'][':fast_forward: Skip'] -= 1
-                update_user(robber_id, robber_data)  # nhớ update
-                await ctx.reply("Bạn đã sử dụng :fast_forward: Skip để bỏ qua thời gian chờ!")
-            else:
-                remaining = cooldown_time - int(elapsed)
-                hours, rem = divmod(remaining, 3600)
-                minutes, seconds = divmod(rem, 60)
-                await ctx.reply(f"Bạn phải chờ {hours} giờ {minutes} phút {seconds} giây trước khi cướp lại.")
-                return
+            remaining = cooldown_time - int(elapsed)
+            hours, rem = divmod(remaining, 3600)
+            minutes, seconds = divmod(rem, 60)
+            await ctx.reply(f"Bạn phải chờ {hours} giờ {minutes} phút {seconds} giây trước khi cướp lại.")
+            return
 
     if status == discord.Status.online:
         await ctx.reply('Nó đang on đếy, cẩn thận ko nó đấm')
